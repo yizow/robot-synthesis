@@ -1,0 +1,9 @@
+Link: 
+D = distance TO common normal
+A = distance OF common normal
+theta = angle between link
+alpha = twist angle
+
+Robot: 
+requires a minimum of two links passed in
+require name, manufacturer, and comment strings passed in with constructors. 

@@ -1,0 +1,45 @@
+07-14-14
+Worked on getting the necessary python packages installed. Significant time spent on trying to upgrade matplotlib version. New Linux Mint LTR out though, so a system reinstall will be pending and hopefully all packages will be most updated again. 
+Current plan is to use this python library:
+https://code.google.com/p/robotics-toolbox-python/
+
+07-15-14
+Reading robotics-toolbox-python (hereafter called'robot') API to try and figure out how to describe a mechanical structure to it. 
+Seems that there is an internal way to represent linkages already. Any class i create would mereley be a wrapper that makes the lower level calls more convenient. 
+
+07-16-14
+Learning about Denavit–Hartenberg parameters. 
+This video was helpful: http://www.youtube.com/watch?v=FO4v1gQNwIY
+
+07-18-14
+Useful information on homogenous transformation matrices:
+http://planning.cs.uiuc.edu/node111.html
+First row is distance TO common parallel
+
+07-19-14
+Figured out forward kinematics. 
+fkine(robot, generalized-joint-coordinates) 
+returns: A 4x4 homogenous transformation, where the upper left corner is a 3x3 rotation that describes the final orientation of the end effector. Right corner is a 1x3 vector that holds the final position of the end effector. The bottom row is [0 0 0 1]. 
+The input is a Robot class and a n-vector containing generalized joint coordinates, where n is the number of links of the robot.
+To create a Robot, pass in the name, manufacturer, and comment arguments as strings. Not passing anything in will result in an error. 
+The first argument should be a list of Link objects.
+A Link is created by specifying the 4 Denavit Hartenberg parameters. 
+
+Still trying to puzzle out inverse kinematics (ikine). Similar syntax, with a robot with < 6DOF I can specify a mask that limits domain of motion. However, changing the floating point values just a little bit seems to throw off the answer. Probably an error in my input somewhere, will have to look further into it to determine robustness. 
+
+I don't think i need inverse kinematics yet though to do this project, so this will be noted for future investigation. 
+
+
+07-20-14
+Created a class that represents a four bar structure. Verified that my calculations were correct and that it forms a closed structure. 
+
+Next up is to step the structure through various orientations and trace a curve. 
+
+07-26-14
+Got Beam class written and optimization implemented. Code currently outputs results that are incorrect. 
+
+I think it is an issue with the way that i'm generating the contraints. For now, I'm going to cheat and set every piece's rotation axis to the same (z-axis)
+
+~~~~~~~TODO~~~~~~~~~~
+I WILL NEED TO COME BACK AND CREATE PIVOT AXIS FIELD OF BEAM CLASS
+~~~~~~~TODO~~~~~~~~~~
