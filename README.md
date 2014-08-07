@@ -9,7 +9,7 @@ So there's a definite issue; i thought i had eliminated all structures that don'
 
 To exit, switch to the terminal and press ctrl+c (or whatever the escape sequence is on windows)
 Or you can close 256 graphs. 
-Sorry, i'll eventually figure out a better exit system.
+Sorry, i'll eventually figure out a better exit system...
 
 
 07-30-14
