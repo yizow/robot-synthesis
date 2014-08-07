@@ -1,6 +1,13 @@
 robot-synthesis
 ===============
 
+08-06-14
+Run synthesis.py
+Graphs will show up. 
+Red is the crank, blue is the coupler, green is the rake(?), black is the base. 
+So there's a definite issue; i thought i had eliminated all structures that don't minimize to 0, but I think i may be looking at the wrong fields of the return result. 
+
+
 07-30-14
 Extract files to directory.
 Change into that directory.

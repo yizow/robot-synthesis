@@ -315,5 +315,5 @@ results = None
 start()
 # results = test()
 # printResults(results)
-# plotResults(results)
+plotResults(results)
 # loadResults()
