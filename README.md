@@ -7,6 +7,10 @@ Graphs will show up.
 Red is the crank, blue is the coupler, green is the rake(?), black is the base. 
 So there's a definite issue; i thought i had eliminated all structures that don't minimize to 0, but I think i may be looking at the wrong fields of the return result. 
 
+To exit, switch to the terminal and press ctrl+c (or whatever the escape sequence is on windows)
+Or you can close 256 graphs. 
+Sorry, i'll eventually figure out a better exit system...
+
 
 07-30-14
 Extract files to directory.
