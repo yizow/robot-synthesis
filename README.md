@@ -1,6 +1,12 @@
 robot-synthesis
 ===============
 
+08-11-14
+Two new directories with pictures so the code doesn't need to calculate everything everytime. 
+pics shows the completed states.
+pics_mid shows the trace of the midpoint of the coupler. 
+All plots are saved as png images. Missing numbers denote an impossible state.
+
 08-06-14
 Run synthesis.py
 Graphs will show up. 
