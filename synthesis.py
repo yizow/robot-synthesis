@@ -22,9 +22,11 @@ import getopt
 
 def start():
 	global results
+	_p = False;
+
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "ht", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "htp", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -37,6 +39,8 @@ def start():
 		if o in ("-t"):
 			results = test()
 			printResults(results)
+		if o in ("-p"):
+			_p = True
 	# process arguments
 	for arg in args:
 		process(arg) # process() is defined elsewhere
@@ -47,6 +51,9 @@ def start():
 	except IOError:
 		results = test()
 		printResults(results)
+
+	if _p:
+		plotResults(results)
 
 def calcEndpoint(start, angle, length):
 	return (start[0] + length * cos(angle), start[1] + length * sin(angle))
@@ -74,6 +81,8 @@ class Beam(Link):
 		self.position = [0.0,0.0,0.0]
 		# rotation about Z axis, X axis, Z axis
 		self.rotation = [0.0,0.0,0.0]
+		# a unit vector describing the direction of the axis that this beam rotates around
+		self.axis = [0.0, 0.0, 1.0]
 		self.endEffector = [_ for _ in endEffector]
 
 	def __setattr__(self, name, value):
@@ -103,7 +112,7 @@ def pinConnection(beam1, beam2):
 	"""
 	posConstraint = map(abs, map(sub, beam1.end(), beam2.start()))
 	# rotConstraint = map(abs, map(sub, beam1.position, beam2.position))
-	rotConstraint = [0,0,0]
+	rotConstraint = cross(beam1.axis, beam2.axis)
 	return posConstraint + rotConstraint
 
 
@@ -115,6 +124,7 @@ def buildState(beam1, coupler, beam2, base, angle):
 	Otherwise, returns the xyz-coordinates of the: 
 	beam2
 	"""
+	constraintBound = 0.001
 
 	base.position = [base.A,0.0,0.0]
 	base.rotation = [pi,0.0,0.0]
@@ -157,8 +167,9 @@ def buildState(beam1, coupler, beam2, base, angle):
 
 	solveState(0)
 	o = optimize(constraint,(0.0,), bounds=findBounds())
-	if o.success:
+	if o.success and constraint(o.x[0]) < constraintBound:
 		solveState(o.x[0])
+		# print constraint(o.x[0])
 		return [[list(beam.start()), list(beam.end())] for beam in (beam1, coupler, beam2, base)]
 	else:
 		return None
@@ -177,6 +188,7 @@ def test():
 
 	results is a list of the start-end coordinates of every beam for each state.
 	"""
+	angIncrement = 128.0
 	results = []
 	progress = 0.0
 	for b1Length in range(1,5):
@@ -188,15 +200,15 @@ def test():
 				for baseLength in range(1,5):
 					b = Beam(baseLength)
 					r = []
-					for angle in range(1,64):
-						a = angle*pi/2.0/16.0
+					for angle in range(1,int(angIncrement)):
+						a = angle*pi/2.0/(angIncrement/4)
 						position = buildState(b1,c,b2,b,a)
 						if position:
 							r += [position]
 
 					results += [r]
 			progress += 1.0/16
-			print "%s%" % progress
+			print "%s%%" % progress
 	return results
 
 
@@ -244,7 +256,7 @@ def loadResults():
 
 
 
-def plotResults(results):
+def plotResults_old(results):
 	"""Plotting - Assumes results holds the coordinate of the end effector
 
 	results - a list of lists of xyz-coordinates. [[[x1,y1,z1],[x2,y2,z2],...]]
@@ -278,7 +290,9 @@ def plotResults(results):
 	results - a list of lists of pairs of xyz-coordinates.
 	"""
 	color = colorGenerator()
+	counter = 0
 	for trace in results:
+		counter += 1
 		for state in trace:
 			# xlist = []
 			# ylist = []
@@ -292,9 +306,31 @@ def plotResults(results):
 				plt.plot([pair[0][0], pair[1][0]],[pair[0][1], pair[1][1]], color=color())
 				plt.plot(None,None)
 
-		plt.show()
+		# plt.show()
+		try:
+			plt.savefig('pics/%d.png' % counter, bbox_inches='tight')
+		except AssertionError:
+			pass
+		plt.close()
+		print counter
 
-
+def plotResults_mid(results):
+	"""Plots the midpoint of the coupler
+	"""
+	counter = 0
+	for trace in results:
+		counter += 1
+		if len(trace) == 1:
+			continue
+		for state in trace:
+			coupler = state[1]
+			plt.scatter((coupler[0][0]+coupler[1][0])/2, coupler[0][1]+coupler[1][1])
+		try:
+				plt.savefig('pics_mid/%d.png' % counter, bbox_inches='tight')
+		except AssertionError:
+			pass
+		plt.close()
+		print counter
 
 def colorGenerator():
 	"""Returns a method that cycles through four different colors, returning one each time. For plotting four different beams
@@ -315,5 +351,5 @@ results = None
 start()
 # results = test()
 # printResults(results)
-plotResults(results)
+# plotResults(results)
 # loadResults()

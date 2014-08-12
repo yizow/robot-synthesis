@@ -35,15 +35,18 @@ Created a class that represents a four bar structure. Verified that my calculati
 
 Next up is to step the structure through various orientations and trace a curve. 
 
+
 07-26-14
 Got Beam class written and optimization implemented. Code currently outputs results that are incorrect. 
 
 I think it is an issue with the way that i'm generating the contraints. For now, I'm going to cheat and set every piece's rotation axis to the same (z-axis)
 
-~~~~~~~TODO~~~~~~~~~~
-I WILL NEED TO COME BACK AND CREATE PIVOT AXIS FIELD OF BEAM CLASS
-~~~~~~~TODO~~~~~~~~~~
-
 
 08-05-14 
 Rewrote I/O for files
+
+
+08-08-14
+Added axis of rotation for beam class
+Limited constraints to only output states with valid solutions
+Saves all plots as png images. Missing numbers denote an impossible state.
