@@ -1,6 +1,10 @@
 robot-synthesis
 ===============
 
+08-12-14
+Started animating structures. 
+Possible bug: doesn't seem to trace full 360 degrees. 
+
 08-11-14
 Two new directories with pictures so the code doesn't need to calculate everything everytime. 
 pics shows the completed states.

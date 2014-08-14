@@ -19,6 +19,8 @@ from pylab import *
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import getopt
+from animate import *
+from matplotlib import animation
 
 def start():
 	global results
@@ -26,7 +28,7 @@ def start():
 
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "htp", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "htpa", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -41,6 +43,8 @@ def start():
 			printResults(results)
 		if o in ("-p"):
 			_p = True
+		if o in ("-a"):
+			_a  = True
 	# process arguments
 	for arg in args:
 		process(arg) # process() is defined elsewhere
@@ -54,6 +58,8 @@ def start():
 
 	if _p:
 		plotResults(results)
+	if _a:
+		animate(results)
 
 def calcEndpoint(start, angle, length):
 	return (start[0] + length * cos(angle), start[1] + length * sin(angle))
@@ -112,8 +118,8 @@ def pinConnection(beam1, beam2):
 	"""
 	posConstraint = map(abs, map(sub, beam1.end(), beam2.start()))
 	# rotConstraint = map(abs, map(sub, beam1.position, beam2.position))
-	rotConstraint = cross(beam1.axis, beam2.axis)
-	return posConstraint + rotConstraint
+	rotConstraint = no.linalg.norm(cross(beam1.axis, beam2.axis))
+	return posConstraint + [rotConstraint]
 
 
 def buildConstraint(beam1, coupler, beam2, base):
@@ -289,6 +295,7 @@ def plotResults(results):
 
 	results - a list of lists of pairs of xyz-coordinates.
 	"""
+	plt.close()
 	color = colorGenerator()
 	counter = 0
 	for trace in results:
@@ -313,6 +320,7 @@ def plotResults(results):
 			pass
 		plt.close()
 		print counter
+		return
 
 def plotResults_mid(results):
 	"""Plots the midpoint of the coupler
@@ -347,8 +355,40 @@ def colorGenerator():
 		return colors[counter['index']]
 	return cycle
 
+
+def init():
+	line.set_data([], [])
+	return line,
+
+def animateTrace(results, trace):
+	trace = results[trace]
+	def animate(i):
+		structure = trace[i]
+		thisx = [structure[_][0][0] for _ in range(4)]
+		thisy = [structure[_][0][1] for _ in range(4)]
+		line.set_data(thisx, thisy)
+		return line,
+	return animate
+
+def animate(results):
+	global line
+	for index in range(len(results)):
+		frames = len(results[index])
+		if frames <= 1:
+			continue
+		plt.close()
+		fig = plt.figure()
+		ax = plt.axes(xlim=(-5,5), ylim=(-5,5))
+		line, = ax.plot([], [], 'o-', lw=2)
+		anim = animation.FuncAnimation(fig, animateTrace(results, index), interval=30, init_func=init, frames=frames)
+		anim.save('animations/' + str(index) + '.mp4', fps=15)
+		print index
+
 results = None
+line, = (None,)
 start()
+
+	# plt.show()
 # results = test()
 # printResults(results)
 # plotResults(results)
