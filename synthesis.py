@@ -24,11 +24,13 @@ from matplotlib import animation
 
 def start():
 	global results
-	_p = False;
+	_p = False	
+	_a = False
+	_m = False
 
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "htpa", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "htpam", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -45,6 +47,8 @@ def start():
 			_p = True
 		if o in ("-a"):
 			_a  = True
+		if o in ("-m"):
+			_m  = True
 	# process arguments
 	for arg in args:
 		process(arg) # process() is defined elsewhere
@@ -60,6 +64,8 @@ def start():
 		plotResults(results)
 	if _a:
 		animate(results)
+	if _m:
+		plotResults_mid(results)
 
 def calcEndpoint(start, angle, length):
 	return (start[0] + length * cos(angle), start[1] + length * sin(angle))
@@ -118,7 +124,7 @@ def pinConnection(beam1, beam2):
 	"""
 	posConstraint = map(abs, map(sub, beam1.end(), beam2.start()))
 	# rotConstraint = map(abs, map(sub, beam1.position, beam2.position))
-	rotConstraint = no.linalg.norm(cross(beam1.axis, beam2.axis))
+	rotConstraint = np.linalg.norm(cross(beam1.axis, beam2.axis))
 	return posConstraint + [rotConstraint]
 
 
@@ -172,7 +178,7 @@ def buildState(beam1, coupler, beam2, base, angle):
 		return ((beam1.rotation[0]-pi,angle),)
 
 	solveState(0)
-	o = optimize(constraint,(0.0,), bounds=findBounds())
+	o = optimize(constraint,(0.0,), bounds=((0,2*pi),))
 	if o.success and constraint(o.x[0]) < constraintBound:
 		solveState(o.x[0])
 		# print constraint(o.x[0])
@@ -320,7 +326,6 @@ def plotResults(results):
 			pass
 		plt.close()
 		print counter
-		return
 
 def plotResults_mid(results):
 	"""Plots the midpoint of the coupler
@@ -334,7 +339,7 @@ def plotResults_mid(results):
 			coupler = state[1]
 			plt.scatter((coupler[0][0]+coupler[1][0])/2, coupler[0][1]+coupler[1][1])
 		try:
-				plt.savefig('pics_mid/%d.png' % counter, bbox_inches='tight')
+				plt.savefig('pics/%d.png' % counter, bbox_inches='tight')
 		except AssertionError:
 			pass
 		plt.close()
@@ -381,7 +386,7 @@ def animate(results):
 		ax = plt.axes(xlim=(-5,5), ylim=(-5,5))
 		line, = ax.plot([], [], 'o-', lw=2)
 		anim = animation.FuncAnimation(fig, animateTrace(results, index), interval=30, init_func=init, frames=frames)
-		anim.save('animations/' + str(index) + '.mp4', fps=15)
+		anim.save('animations_full/' + str(index) + '.mp4', fps=15)
 		print index
 
 results = None
