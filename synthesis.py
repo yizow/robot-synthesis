@@ -21,16 +21,18 @@ from matplotlib.path import Path
 import getopt
 from animate import *
 from matplotlib import animation
-
+from matplotlib.mlab import PCA
 def start():
 	global results
-	_p = False	
-	_a = False
-	_m = False
+	try:
+		results = loadResults()
+	except IOError:
+		results = test()
+		printResults(results)
 
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "htpam", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "htpamc", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -44,28 +46,18 @@ def start():
 			results = test()
 			printResults(results)
 		if o in ("-p"):
-			_p = True
+			plotResults(results)
 		if o in ("-a"):
-			_a  = True
+			animate(results)
 		if o in ("-m"):
-			_m  = True
+			plotResults_mid(results)
+		if o in ("-c"):
+			plotComponents(results)
 	# process arguments
 	for arg in args:
 		process(arg) # process() is defined elsewhere
 
 
-	try:
-		results = loadResults()
-	except IOError:
-		results = test()
-		printResults(results)
-
-	if _p:
-		plotResults(results)
-	if _a:
-		animate(results)
-	if _m:
-		plotResults_mid(results)
 
 def calcEndpoint(start, angle, length):
 	return (start[0] + length * cos(angle), start[1] + length * sin(angle))
@@ -200,7 +192,7 @@ def test():
 
 	results is a list of the start-end coordinates of every beam for each state.
 	"""
-	angIncrement = 128.0
+	numPoints = 128.0
 	results = []
 	progress = 0.0
 	for b1Length in range(1,5):
@@ -212,8 +204,8 @@ def test():
 				for baseLength in range(1,5):
 					b = Beam(baseLength)
 					r = []
-					for angle in range(1,int(angIncrement)):
-						a = angle*pi/2.0/(angIncrement/4)
+					for angle in range(1,int(numPoints)):
+						a = angle*pi/2.0/(numPoints/4)
 						position = buildState(b1,c,b2,b,a)
 						if position:
 							r += [position]
@@ -337,9 +329,39 @@ def plotResults_mid(results):
 			continue
 		for state in trace:
 			coupler = state[1]
-			plt.scatter((coupler[0][0]+coupler[1][0])/2, coupler[0][1]+coupler[1][1])
+			plt.scatter((coupler[0][0]+coupler[1][0])/2, (coupler[0][1]+coupler[1][1])/2)
 		try:
 				plt.savefig('pics/%d.png' % counter, bbox_inches='tight')
+		except AssertionError:
+			pass
+		plt.close()
+		print counter
+
+def plotComponents(results):
+	counter = 0
+	for trace in results:
+		counter += 1
+		if len(trace) == 1:
+			continue
+		points = []
+		for position in [((state[1][0][0]+state[1][1][0])/2, (state[1][0][1]+state[1][1][1])/2) for state in trace]:
+			points += [position]
+		points = np.array(points)
+		if points.shape[0] < points.shape[1]:
+			points = points.T
+		pca = PCA(points)
+
+		plt.close()
+		ax = plt.axes(xlim=(-5,5), ylim=(-5,5))
+		plt.plot(pca.a[:,0], pca.a[:,1])
+		ax.arrow(0,0,pca.Wt[0][0], pca.Wt[0][1])
+		ax.arrow(0,0,pca.Wt[1][0], pca.Wt[1][1])
+		# Make sure eigenvectors are unit vectors
+		np.testing.assert_array_almost_equal(1.0, np.linalg.norm(pca.Wt[0]))
+		np.testing.assert_array_almost_equal(1.0, np.linalg.norm(pca.Wt[1]))
+
+		try:
+			plt.savefig('pics_components/%d.png' % counter, bbox_inches='tight')
 		except AssertionError:
 			pass
 		plt.close()
@@ -389,8 +411,10 @@ def animate(results):
 		anim.save('animations_full/' + str(index) + '.mp4', fps=15)
 		print index
 
+
 results = None
 line, = (None,)
+
 start()
 
 	# plt.show()
