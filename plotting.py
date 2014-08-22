@@ -106,19 +106,20 @@ def colorGenerator():
 	return cycle
 
 
-def plotComponents(results):
+def plotComponents(results, components):
 	folderName = "pics_components/"
 	print "Plotting principal components: " + folderName
 	plt.close()
 	counter = 0
-	for trace in results:
+	
+	for trace, components in zip(results, components):
 		counter += 1
 		if len(trace) == 1:
 			continue
 		points = getMids(trace)
 		points = np.array(points)
-		eVal, eVec = components(points)
-		v1, v2 = findPrincipalComponents(eVal, eVec)
+		
+		v1, v2 = components[0], components[1]
 
 		ax = plt.axes(xlim=(-5,5), ylim=(-5,5))
 		plt.plot(points[:,0], points[:,1])
@@ -131,42 +132,6 @@ def plotComponents(results):
 			pass
 		plt.close()
 		print counter
-
-def components(points):
-	points = np.array(points)
-	meanx = np.average(points[:,0])
-	meany = np.average(points[:,1])	
-	meanz = np.average(points[:,2])
-	correctedX = [value-meanx for value in (points[:,0])] 
-	correctedY = [value-meany for value in (points[:,1])] 
-	correctedZ = [value-meanz for value in (points[:,2])] 
-
-	data = np.array([correctedX, correctedY, correctedZ])
-	covData = np.cov(data)
-	eigenvalues, eigenvectors = np.linalg.eig(covData)
-
-	return eigenvalues, eigenvectors
-
-def findPrincipalComponents(eigenvalues, eigenvectors):
-	"""Given two numpy arrays, one of eigenvalues, the other of the corresponding eigenvalues, 
-		This function returns the 2 eigenvectors with the largest eigenvalues
-	"""
-	value1, value2 = -1.0, -1.0 	#value1 >= value2
-	vec1, vec2 = None, None
-
-	# Walk through the eigenvalues and record the two largest 
-	for index in range(len(eigenvalues)):
-		value = eigenvalues[index]
-		if value > value1:
-			value2 = value1
-			value1 = value
-			vec2 = vec1
-			vec1 = eigenvectors[index]
-		elif value > value2:
-			value2 = value
-			vec2 = eigenvectors[index]
-
-	return vec1, vec2
 
 
 def init():

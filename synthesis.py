@@ -19,18 +19,27 @@ from pylab import *
 import matplotlib.pyplot as plt
 import getopt
 from plotting import *
+from data import *
 
+componentsFile = 'results_Components'
 def start():
 	global results
+	global components
 	try:
 		results = loadResults()
 	except IOError:
 		results = test()
 		printResults(results)
+		components = getComponents(results)
+
+	try: 
+		components = np.load(componentsFile + 'npy')
+	except IOError:
+		components = getComponents(results)
 
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "htpamc", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "htpamCc", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -49,8 +58,10 @@ def start():
 			animate(results)
 		if o in ("-m"):
 			plotResults_mid(results)
+		if o in ("-C"):
+			components = getComponents(results)
 		if o in ("-c"):
-			plotComponents(results)
+			plotComponents(results, components)
 	# process arguments
 	for arg in args:
 		process(arg) # process() is defined elsewhere
@@ -214,66 +225,70 @@ def test():
 	return results
 
 
-def printResults(results):
-	with open('results.txt', 'w') as f:
-		for items in results:
-			s = ""
-			for coordinate in items:
-				s += "%s:" % coordinate
-			s = s[:-1] + "\n" # drop the last colon and new line
-			f.write(s)
-
-
-def loadResults():
-	with open('results.txt', 'r') as f:
-		results = []
-		
-		while True:
-			line = f.readline()
-			
-			# File End. Return
-			if line == '':	
-				return results
-
-			trace = []
-			for coordinate in line.split(':'):
-				# Remove newline character, brackets, and commas; then split each coordinate into values
-				coordinate = coordinate[:-1].translate(None, '[],').split()
-				# Convert to floats and transform back into start-end pairs; then add to trace
-				pairs = []
-				for i in range(len(coordinate)/6):
-					index = i * 6
-					try:
-						for add in range(6):
-							coordinate[index + add] = float(coordinate[index+add])
-					except ValueError:
-						print coordinate[i]
-					startEnd = [[coordinate[index], coordinate[index+1], coordinate[index+2]], [coordinate[index+3],coordinate[index+4],coordinate[index+5]]]
-					pairs += [startEnd]
-
-				trace += [pairs]
-
-			results += [trace]
-
-
 def getLengths(trace):
-	"""Get the lengths of the major and minor axis, returned in that order
+	"""Get the eigenvectors of the major and minor axis, returned in that order.
+		The eigenvectors are scaled by dividing by the length of the trace in the major axis
 	"""
-	lmax, lmin = -1.0, -1.0
 	mids = getMids(trace)
-	eVal, eVec = components(mids)
+	eVal, eVec = getEig(mids)
 	v1, v2 = findPrincipalComponents(eVal, eVec)
 	transform = np.hstack((v1.reshape(3,1), v2.reshape(3,1)))
 	transformed = transform.T.dot(np.array(mids).T)
 	ranges = np.ptp(transformed, axis=1)
+	ranges = [(ranges[0], v1), (ranges[1], v2)]
 	ranges.sort()
 	ranges.reverse()
-	return ranges[0], ranges[1]
+	lmax = ranges[0][0]
+	return np.array((ranges[0][1]/lmax, ranges[1][1]/lmax))
+
+def getComponents(results):
+	print "Getting principal components"
+	components = []
+	for trace in results:
+		components += [getLengths(trace)]
+	np.save(componentsFile, components)
+	return np.array(components)
 
 
+def getEig(points):
+	points = np.array(points)
+	meanx = np.average(points[:,0])
+	meany = np.average(points[:,1])	
+	meanz = np.average(points[:,2])
+	correctedX = [value-meanx for value in (points[:,0])] 
+	correctedY = [value-meany for value in (points[:,1])] 
+	correctedZ = [value-meanz for value in (points[:,2])] 
+
+	data = np.array([correctedX, correctedY, correctedZ])
+	covData = np.cov(data)
+	eigenvalues, eigenvectors = np.linalg.eig(covData)
+
+	return eigenvalues, eigenvectors
+
+def findPrincipalComponents(eigenvalues, eigenvectors):
+	"""Given two numpy arrays, one of eigenvalues, the other of the corresponding eigenvalues, 
+		This function returns the 2 eigenvectors with the largest eigenvalues
+	"""
+	value1, value2 = -1.0, -1.0 	#value1 >= value2
+	vec1, vec2 = None, None
+
+	# Walk through the eigenvalues and record the two largest 
+	for index in range(len(eigenvalues)):
+		value = eigenvalues[index]
+		if value > value1:
+			value2 = value1
+			value1 = value
+			vec2 = vec1
+			vec1 = eigenvectors[index]
+		elif value > value2:
+			value2 = value
+			vec2 = eigenvectors[index]
+
+	return vec1, vec2
 
 
 results = None
+components = None
 line, = (None,)
 
 start()
