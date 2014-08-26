@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import getopt
 from plotting import *
 from data import *
+from featureVector import *
 
 componentsFile = 'results_Components'
 def start():
