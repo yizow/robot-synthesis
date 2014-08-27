@@ -53,6 +53,7 @@ def start():
 		if o in ("-t"):
 			results = test()
 			printResults(results)
+			filterResults(results)
 		if o in ("-p"):
 			plotResults(results)
 		if o in ("-a"):
@@ -213,6 +214,8 @@ def test():
 				b2 = Beam(b2Length)
 				for baseLength in range(1,5):
 					b = Beam(baseLength)
+					if b1Length > baseLength or b2Length > baseLength:
+						continue
 					r = []
 					for angle in range(1,int(numPoints)):
 						a = angle*pi/2.0/(numPoints/4)
@@ -225,67 +228,13 @@ def test():
 			print "%s%%" % progress
 	return results
 
-
-def getLengths(trace):
-	"""Get the eigenvectors of the major and minor axis, returned in that order.
-		The eigenvectors are scaled by dividing by the length of the trace in the major axis
-	"""
-	mids = getMids(trace)
-	eVal, eVec = getEig(mids)
-	v1, v2 = findPrincipalComponents(eVal, eVec)
-	transform = np.hstack((v1.reshape(3,1), v2.reshape(3,1)))
-	transformed = transform.T.dot(np.array(mids).T)
-	ranges = np.ptp(transformed, axis=1)
-	ranges = [(ranges[0], v1), (ranges[1], v2)]
-	ranges.sort()
-	ranges.reverse()
-	lmax = ranges[0][0]
-	return np.array((ranges[0][1]/lmax, ranges[1][1]/lmax))
-
 def getComponents(results):
 	print "Getting principal components"
 	components = []
 	for trace in results:
-		components += [getLengths(trace)]
+		components += [getPrincipalComponents(getMids(trace))]
 	np.save(componentsFile, components)
 	return np.array(components)
-
-
-def getEig(points):
-	points = np.array(points)
-	meanx = np.average(points[:,0])
-	meany = np.average(points[:,1])	
-	meanz = np.average(points[:,2])
-	correctedX = [value-meanx for value in (points[:,0])] 
-	correctedY = [value-meany for value in (points[:,1])] 
-	correctedZ = [value-meanz for value in (points[:,2])] 
-
-	data = np.array([correctedX, correctedY, correctedZ])
-	covData = np.cov(data)
-	eigenvalues, eigenvectors = np.linalg.eig(covData)
-
-	return eigenvalues, eigenvectors
-
-def findPrincipalComponents(eigenvalues, eigenvectors):
-	"""Given two numpy arrays, one of eigenvalues, the other of the corresponding eigenvalues, 
-		This function returns the 2 eigenvectors with the largest eigenvalues
-	"""
-	value1, value2 = -1.0, -1.0 	#value1 >= value2
-	vec1, vec2 = None, None
-
-	# Walk through the eigenvalues and record the two largest 
-	for index in range(len(eigenvalues)):
-		value = eigenvalues[index]
-		if value > value1:
-			value2 = value1
-			value1 = value
-			vec2 = vec1
-			vec1 = eigenvectors[index]
-		elif value > value2:
-			value2 = value
-			vec2 = eigenvectors[index]
-
-	return vec1, vec2
 
 
 results = None
@@ -294,8 +243,7 @@ line, = (None,)
 
 start()
 
-	# plt.show()
-# results = test()
-# printResults(results)
-# plotResults(results)
-# loadResults()
+print "Feature Vectors:"
+for mids in [getMids(trace) for trace in results]:
+	print getFeatureVector(mids)
+

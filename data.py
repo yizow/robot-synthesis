@@ -40,3 +40,25 @@ def loadResults():
 
 	return results
 
+def filterResults(results):
+	"""We only want traces that have more than a minimum number of points and are almost a closed loop
+	"""
+	with open('results_filtered.txt', 'w') as f:
+		for trace in results:
+			if len(trace) > 80 and closeEnough(trace):
+				s = ""
+				for coordinate in trace:
+					s += "%s:" % coordinate
+				s = s[:-1] + "\n" # drop the last colon and new line
+				f.write(s)
+
+def closeEnough(trace, distance = 1.0):
+	items = getMids(trace)
+	length = len(items) - 1
+	dx = items[0][0] - items[length][0]
+	dy = items[0][1] - items[length][1]
+	dz = items[0][2] - items[length][2]
+	d = sqrt(dx**2 + dy**2 + dz**2)
+	if d > distance:
+		return False
+	return True				

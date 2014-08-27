@@ -1,21 +1,40 @@
 import numpy as np
 
+def getFeatureVector(mids):
+	vmax, vmin = getPrincipalComponents(mids)
+	lmax, lmin = getAxisLengths(mids, vmax, vmin)
+	mids = normalize(mids, lmax)
+	edges = getEdges(mids)
+	features = []
+	features.append(getLength(edges))
+	features.append(getArea(mids))
+	features.append(lmin/lmax)
+	distance = getDistance(mids)
+	features.append(np.linalg.norm(distance))
+	features.append(getOrientation(distance, vmax))
+	features.append(getNumIntersections(mids))
+	return features
+
+def normalize(mids, lmax):
+	return np.array([mid/lmax for mid in mids])
+
+
 def getEdges(mids):
-	eges = []
+	edges = []
 	for index in range(len(mids)):
 		edges += [np.subtract(mids[index], mids[index-1])]
-	return edges
+	return np.array(edges)
 
 def getLength(edges):
-	return np.sum([sqrt(edge[0]**2 + edge[1]**2 + edge[1]**2) for edge in edges])
+	return np.sum([np.sqrt(edge[0]**2 + edge[1]**2 + edge[1]**2) for edge in edges])
 
-def getArea(edges):
+def getArea(mids):
 	area = 0.0
 	for index in range(len(mids)):
-		area += np.cross(edges[index], edges[index-1])
+		area += np.linalg.norm(np.cross(mids[index], mids[index-1]))
 	return area
 
-def Distance(mids):
+def getDistance(mids):
 	avgX = np.average(mids[:,0])
 	avgY = np.average(mids[:,1])
 	avgZ = np.average(mids[:,2])
@@ -23,4 +42,99 @@ def Distance(mids):
 	return np.subtract([0,0,0], cm)
 
 def getOrientation(distance, vmax):
-	return np.arcsin(np.cross(distance/np.linalg.norm(distance), vmax))
+	return np.arcsin(np.linalg.norm(np.cross(distance/np.linalg.norm(distance), vmax)))
+
+def getAxisLengths(mids, v1, v2):
+	"""Get the length of the curve on the major and minor axis, returned in that order.
+	"""
+	transform = np.hstack((v1.reshape(3,1), v2.reshape(3,1)))
+	transformed = transform.T.dot(np.array(mids).T)
+	ranges = np.ptp(transformed, axis=1)
+	ranges = [(ranges[0], v1), (ranges[1], v2)]
+	ranges.sort()
+	ranges.reverse()
+	lmax = ranges[0][0]/2.0
+	lmin = ranges[1][0]/2.0
+	return (lmax, lmin)
+
+def getPrincipalComponents(mids):
+	eVal, eVec = getEig(mids)
+	v1, v2 = findPrincipalComponents(eVal, eVec)
+	return v1, v2
+
+def getEig(trace):
+	trace = np.array(trace)
+	meanx = np.average(trace[:,0])
+	meany = np.average(trace[:,1])	
+	meanz = np.average(trace[:,2])
+	correctedX = [value-meanx for value in (trace[:,0])] 
+	correctedY = [value-meany for value in (trace[:,1])] 
+	correctedZ = [value-meanz for value in (trace[:,2])] 
+
+	data = np.array([correctedX, correctedY, correctedZ])
+	covData = np.cov(data)
+	eigenvalues, eigenvectors = np.linalg.eig(covData)
+
+	return eigenvalues, eigenvectors
+
+def findPrincipalComponents(eigenvalues, eigenvectors):
+	"""Given two numpy arrays, one of eigenvalues, the other of the corresponding eigenvalues, 
+		This function returns the 2 eigenvectors with the largest eigenvalues
+	"""
+	value1, value2 = -1.0, -1.0 	#value1 >= value2
+	vec1, vec2 = None, None
+
+	# Walk through the eigenvalues and record the two largest 
+	for index in range(len(eigenvalues)):
+		value = eigenvalues[index]
+		if value > value1:
+			value2 = value1
+			value1 = value
+			vec2 = vec1
+			vec1 = eigenvectors[index]
+		elif value > value2:
+			value2 = value
+			vec2 = eigenvectors[index]
+
+	return vec1, vec2
+
+def getNumIntersections(mids):
+	length = len(mids)
+	counter = 0
+	for index in range(length-1):
+		A, B = mids[index], mids[index+1]
+		for increment in range (2, length-1):
+			increment -= length
+			C, D = mids[index+increment], mids[index+increment+1]
+			if intersects(A,B,C,D):
+				counter += 1
+				# print str(A) + " - " + str(B)
+				# print str(C) + " - " + str(D)
+				# print
+	return counter
+
+def intersects(A, B, C, D):
+	"""Checks for intersection between line segments AB and CD
+	"""
+	if max(A[0],B[0]) < min(C[0], D[0]) or min(A[0],B[0]) > max(C[0], D[0]):
+		return False
+	# Two lines are represent by f1(x) = A1*x + b1, f2(x) = A2*x + b2, 
+	try:
+		A1 = (A[1]-B[1])/(A[0]-B[0])
+		A2 = (C[1]-D[1])/(C[0]-D[0])
+		b1 = A[1]-A1*A[0]
+		b2 = C[1]-A2*C[0]
+	except ZeroDivisionError:	# We already checked x-bounds, so this means we have two vertical lines. Check y-bounds
+		if max(A[1],B[1]) < min(C[1], D[1]) or min(A[1],B[1]) > max(C[1], D[1]):
+			return False
+		else: 
+			return True
+
+	if A1 == A2:	# Parallel Lines
+		return False
+	X = (b2-b1)/(A1-A2)
+
+	if X < max(min(A[0],B[0]), min(C[0],D[0])) or X > min(max(A[0],B[0]), max(C[0],D[0])):
+	   return False; # intersection is out of bound
+	else:
+ 		return True;
