@@ -62,3 +62,12 @@ def closeEnough(trace, distance = 1.0):
 	if d > distance:
 		return False
 	return True				
+
+def printPoI(PoI):
+	with open('PoI.txt', 'w') as f:
+		for items in results:
+			s = ""
+			for coordinate in items:
+				s += "%s:" % coordinate
+			s = s[:-1] + "\n" # drop the last colon and add new line
+			f.write(s)

@@ -10,8 +10,8 @@ Options:
 -t:	Force recalculation of test data instead of loading from file
 """
 
+from Beam import Beam
 from math import *
-from robot import Link
 from operator import *
 from scipy.optimize import minimize as optimize
 import numpy as np
@@ -23,24 +23,32 @@ from data import *
 from featureVector import *
 
 componentsFile = 'results_Components'
+PoIFile = 'PoI'
 def start():
 	global results
 	global components
+	global PoI
 	try:
 		results = loadResults()
 	except IOError:
 		results = test()
 		printResults(results)
 		components = getComponents(results)
+		PoI = testPoI()
 
 	try: 
-		components = np.load(componentsFile + 'npy')
+		components = np.load(componentsFile + '.npy')
 	except IOError:
 		components = getComponents(results)
 
+	try: 
+		PoI = np.load(PoIFile + '.npy')
+	except IOError:
+		PoI = testPoI()
+
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "htpamCc", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "htpamCcr", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -50,12 +58,14 @@ def start():
 		if o in ("-h", "--help"):
 			print __doc__
 			sys.exit(0)
-		if o in ("-t"):
+		if o in ("-r"):
 			results = test()
 			printResults(results)
 			filterResults(results)
+		if o in ("-t"):
+			PoI = testPoI()
 		if o in ("-p"):
-			plotResults(results)
+			plotPoI(PoI)
 		if o in ("-a"):
 			animate(results)
 		if o in ("-m"):
@@ -80,46 +90,99 @@ def euler(theta):
 	return tr2eul(r2t(rotz(theta)))
 
 
-class Beam(Link):
-	"""Represents a beam, a specific type of link that is a rigid, straight, and has no twist. 
-	Calculates positions of endpoints for calculating pin connections
-	Position of beam is defined as the startPin
-	Travel the length of the Beam to get to the endPin
+
+
+
+# b1 = Beam(3)
+# c = Beam(3)
+# b2 = Beam(3)
+# b = Beam(3)
+# a = pi/6
+
+def test():
+	"""Iterate through beam lengths and angles
+	beam lengths range from 1 to 4
+	angle increments of pi/8 
+
+	results is a list of the start-end coordinates of every beam for each state.
 	"""
-	zeroThreshold = .00001
-	
-	
-	def __init__(self, length, endEffector = [0.0,0.0,0.0]):
-		"""endEffector is vector pointing from start to endEffector position, if self is at 0 degrees rotation
-		"""
-		Link.__init__(self, 0,length,0,0)
-		self.position = [0.0,0.0,0.0]
-		# rotation about Z axis, X axis, Z axis
-		self.rotation = [0.0,0.0,0.0]
-		# a unit vector describing the direction of the axis that this beam rotates around
-		self.axis = [0.0, 0.0, 1.0]
-		self.endEffector = [_ for _ in endEffector]
+	numPoints = 128.0
+	results = []
+	progress = 0.0
+	# Iterate through linkage lengths
+	for inCrankLength in range(1,5):
+		for rockerLength in range(1,5):
+			for outCrankLength in range(1,5):
+				for baseLength in range(1,5):
+					if inCrankLength > baseLength or outCrankLength > baseLength:
+						continue
+					# Check Grashof condition
+					if not (baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0):
+						continue
 
-	def __setattr__(self, name, value):
-		if name in Link.fields:
-			Link.__setattr__(self, name, value)
-		else:
-			self.__dict__[name] = value
+					inCrank = Beam(inCrankLength)
+					rocker = Beam(rockerLength)
+					outCrank = Beam(outCrankLength)
+					base = Beam(baseLength)
+					r = []
+					for angle in range(1,int(numPoints)):
+						a = angle*pi/2.0/(numPoints/4)
+						position = buildState(inCrank, rocker, outCrank, base, a)
+						if position:
+							r += [position]
 
-	def start(self):
-		return self.position
+					results += [r]
+			progress += 1.0/16
+			print "%s%%" % progress
+	return results
 
-	def end(self):
-		angle = self.rotation[0]
-		ret = map(add, self.position, [self.A*x for x in (cos(angle), sin(angle), 0.0)])
-		return ret
+def testPoI():
+	"""Same as above, but only calculates the PoI not the state
+	"""
+	numPoints = 128.0
+	results = []
+	progress = 0.0
+	numPoI = 25 # Will round down to nearest integer that is double a perfect square
+	PoIFineness = trunc(sqrt(numPoI/2.0))
 
-	def where(self):
-		array = [a for a in self.position]
-		for i in range(len(array)):
-			if abs(array[i]) < self.zeroThreshold:
-				array[i] = 0.0
-		return array
+	# Iterate through linkage lengths
+	for inCrankLength in range(1,5):
+		for rockerLength in range(1,5):
+			for outCrankLength in range(1,5):
+				for baseLength in range(1,5):
+					if inCrankLength > baseLength or outCrankLength > baseLength:
+						continue
+					# Check Grashof condition
+					if not (baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0):
+						continue
+
+					inCrank = Beam(inCrankLength)
+					rocker = Beam(rockerLength)
+					outCrank = Beam(outCrankLength)
+					base = Beam(baseLength)
+					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
+					for angle in range(1,int(numPoints)):
+						a = angle*pi/2.0/(numPoints/4)
+						position = buildState(inCrank, rocker, outCrank, base, a)
+						if position:
+							# Iterate through positions of Point of Interest on rocker
+							count1 = -1
+							for PoIOffset in [x/PoIFineness for x in range(-int(PoIFineness), int(PoIFineness+1))]:
+								count1 += 1
+								count2 = -1
+								for PoIDistance in range(-int(PoIFineness), int(PoIFineness+1)):
+									count2 += 1
+									rocker.PoIOffset = PoIOffset
+									rocker.PoIDistance = PoIDistance
+									r[(int(PoIFineness)*2+1)*count1 + count2] += [rocker.PoI()]
+					for trace in r:
+						if len(trace) > 80:
+							results += [trace]
+							
+			progress += 1.0/16
+			print "%s%%" % progress
+	np.save(PoIFile, np.array(results))
+	return results
 
 
 def pinConnection(beam1, beam2):
@@ -189,45 +252,6 @@ def buildState(beam1, coupler, beam2, base, angle):
 	else:
 		return None
 
-
-# b1 = Beam(3)
-# c = Beam(3)
-# b2 = Beam(3)
-# b = Beam(3)
-# a = pi/6
-
-def test():
-	"""Iterate through beam lengths and angles
-	beam lengths range from 1 to 4
-	angle increments of pi/8 
-
-	results is a list of the start-end coordinates of every beam for each state.
-	"""
-	numPoints = 128.0
-	results = []
-	progress = 0.0
-	for b1Length in range(1,5):
-		b1 = Beam(b1Length)
-		for couplerLength in range(1,5):
-			c = Beam(couplerLength)
-			for b2Length in range(1,5):
-				b2 = Beam(b2Length)
-				for baseLength in range(1,5):
-					b = Beam(baseLength)
-					if b1Length > baseLength or b2Length > baseLength:
-						continue
-					r = []
-					for angle in range(1,int(numPoints)):
-						a = angle*pi/2.0/(numPoints/4)
-						position = buildState(b1,c,b2,b,a)
-						if position:
-							r += [position]
-
-					results += [r]
-			progress += 1.0/16
-			print "%s%%" % progress
-	return results
-
 def getComponents(results):
 	print "Getting principal components"
 	components = []
@@ -236,14 +260,17 @@ def getComponents(results):
 	np.save(componentsFile, components)
 	return np.array(components)
 
+def printFeatureVectors():
+	print "Feature Vectors:"
+	for mids in [getMids(trace) for trace in results]:
+		print getFeatureVector(mids)
 
 results = None
 components = None
 line, = (None,)
+PoI = None
 
 start()
 
-print "Feature Vectors:"
-for mids in [getMids(trace) for trace in results]:
-	print getFeatureVector(mids)
+
 

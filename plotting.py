@@ -133,6 +133,32 @@ def plotComponents(results, components):
 		plt.close()
 		print counter
 
+def plotPoI(PoI):
+	folderName = "pics_PoI/"
+	print "Plotting traces of different PoI: " + folderName
+	counter = 0
+	length = len(PoI)
+	checkpoint = length/16.0
+	progress = 0
+	for trace in PoI:
+		plt.clf()
+		ax = plt.axes(xlim=(-8,8), ylim=(-8,8	))
+		counter += 1
+		if len(trace) == 1:
+			continue
+		for point in trace:
+			plt.scatter(point[0], point[1])
+		try:
+				plt.savefig(folderName + '/%d.png' % counter, bbox_inches='tight')
+		except AssertionError:
+			pass
+		if counter >= checkpoint:
+			progress += 1/16.0
+			checkpoint += length/16.0
+			print "%s%%" % progress
+	plt.close()
+
+
 
 def init():
 	line.set_data([], [])
