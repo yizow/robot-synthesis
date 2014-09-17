@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 def getFeatureVector(mids):
 	vmax, vmin = getPrincipalComponents(mids)
@@ -10,7 +11,8 @@ def getFeatureVector(mids):
 	features.append(getArea(mids))
 	features.append(lmin/lmax)
 	distance = getDistance(mids)
-	features.append(np.linalg.norm(distance))
+	# Explicit norm calculated for speed
+	features.append(math.sqrt(distance[0]**2+distance[1]**2+distance[2]**2))
 	features.append(getOrientation(distance, vmax))
 	features.append(getNumIntersections(mids))
 	return features
@@ -31,7 +33,9 @@ def getLength(edges):
 def getArea(mids):
 	area = 0.0
 	for index in range(len(mids)):
-		area += np.linalg.norm(np.cross(mids[index], mids[index-1]))
+		# Explicit norm calculated for speed
+		v = np.cross(mids[index], mids[index-1])
+		area += math.sqrt(v[0]**2 + v[1]**2 + v[1]**2)
 	return area
 
 def getDistance(mids):
@@ -42,7 +46,9 @@ def getDistance(mids):
 	return np.subtract([0,0,0], cm)
 
 def getOrientation(distance, vmax):
-	return np.arcsin(np.linalg.norm(np.cross(distance/np.linalg.norm(distance), vmax)))
+	# Explicit norm calculated for speed
+	v = np.cross(distance/math.sqrt(distance[0]**2 + distance[1]**2 + distance[1]**2), vmax)
+	return np.arcsin(math.sqrt(v[0]**2 + v[1]**2 + v[1]**2))
 
 def getAxisLengths(mids, v1, v2):
 	"""Get the length of the curve on the major and minor axis, returned in that order.
@@ -138,3 +144,34 @@ def intersects(A, B, C, D):
 	   return False; # intersection is out of bound
 	else:
  		return True;
+
+def getDistanceVectors(T1, T2):
+	# ensure len(T1) < len(T2)
+	if len(T1) > len(T2):
+		T1, T2 = T2, T1
+
+	T1Curvature, T2Curvature = discreteCurvature(T1), discreteCurvature(T2)
+	dPos, dAngle = [], []
+	for increment in range(len(T2)):
+		posSum, angleSum = 0.0,0.0
+		for index in range(len(T1)):
+			difference = np.subtract(T1[index],T2[(index+increment)%len(T2)])
+			# explicit norm calculated for speed
+			posSum += difference[0]**2+difference[1]**2+difference[2]**2
+			angleDifference = T1Curvature[index]-T2Curvature[(index+increment)%len(T2)]
+			angleSum += angleDifference[0]**2+angleDifference[1]**2+angleDifference[2]**2
+		dPos += [posSum]
+		dAngle += [angleSum]
+
+	dPos = math.sqrt(min(dPos)/len(T1))
+	dAngle = math.sqrt(min(dAngle))
+	return dPos, dAngle
+
+def discreteCurvature(curve):
+	edges = getEdges(curve)
+	# Explicit norm calculated for speed
+	normEdges = [edge/math.sqrt(edge[0]**2+edge[1]**2+edge[2]**2) for edge in edges]
+	curvatures = []
+	for index in range(len(edges)):
+		curvatures += [np.cross(2*normEdges[index-1], normEdges[index])/(1+np.dot(normEdges[index-1], normEdges[index]))]
+	return np.array(curvatures)

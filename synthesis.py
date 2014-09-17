@@ -262,7 +262,7 @@ def getComponents(results):
 
 def printFeatureVectors():
 	print "Feature Vectors:"
-	for mids in [getMids(trace) for trace in results]:
+	for mids in [getMids(trace) for trace in PoI]:
 		print getFeatureVector(mids)
 
 results = None
