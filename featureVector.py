@@ -1,6 +1,17 @@
 import numpy as np
 import math
 
+def getDistanceMetric(trace1, trace2):
+	f1 = getFeatureVector(trace1)
+	f2 = getFeatureVector(trace2)
+	distanceVectors = getDistanceVectors(trace1, trace2)
+	diff = np.subtract(f1,f2)
+	diff = diff.tolist()
+	diff += [distanceVectors[0], distanceVectors[1]]
+	distance = np.dot(np.transpose(diff),diff)
+	return distance
+
+
 def getFeatureVector(mids):
 	vmax, vmin = getPrincipalComponents(mids)
 	lmax, lmin = getAxisLengths(mids, vmax, vmin)
@@ -57,8 +68,8 @@ def getAxisLengths(mids, v1, v2):
 	transformed = transform.T.dot(np.array(mids).T)
 	ranges = np.ptp(transformed, axis=1)
 	ranges = [(ranges[0], v1), (ranges[1], v2)]
-	ranges.sort()
-	ranges.reverse()
+	if ranges[0][0] > ranges[1][0]:
+		ranges = [ranges[1], ranges[0]]
 	lmax = ranges[0][0]/2.0
 	lmin = ranges[1][0]/2.0
 	return (lmax, lmin)

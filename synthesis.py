@@ -21,6 +21,7 @@ import getopt
 from plotting import *
 from data import *
 from featureVector import *
+from userInput import *
 
 componentsFile = 'results_Components'
 PoIFile = 'PoI'
@@ -272,5 +273,25 @@ PoI = None
 
 start()
 
-
-
+with open('testFeature.txt', 'w') as f:
+	div = 32.0
+	progress = 0.0
+	increment = 0.0
+	distances = []
+	counter = 0
+	for trace in PoI:
+		if counter >= increment:
+			print "%s%%" % progress
+			increment += len(PoI)/div
+			progress += 1/div
+		counter += 1
+		dist = getDistanceMetric(trace, testTrace)
+		f.write(str(dist))
+		f.write('\n')
+		distances += [dist]
+	distances = [[distances[index], index+1] for index in range(len(distances))]
+	# minIndex = 0
+	# for index in range(len(distances)):
+	# 	dist = distances[index]
+	# 	if dist < distances[minIndex]:
+	# 		minIndex = index

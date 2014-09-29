@@ -1,0 +1,23 @@
+Good Performance
+Test Feature Array 1:
+1 0 -1 0
+0 1 0 -1
+0 0 0 0
+
+Poor Performance
+Test Feature Array 2:
+1 0 0 1
+0 1 -1 0
+0 0 0 0
+
+Not really good performance.
+Test Feature Array 3:
+1 0 0 -1
+0 1 -1 0
+0 0 0 0
+
+Kind of feasible performance
+Test Feature Array 4:
+1 -1 0 0
+0 0 1 -1
+0 0 0 0
