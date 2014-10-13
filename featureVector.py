@@ -1,3 +1,6 @@
+# Computes the feature vector associated with a trace. 
+# Given two traces, computes the distance metrics between the two. 
+
 import numpy as np
 import math
 
@@ -12,47 +15,47 @@ def getDistanceMetric(trace1, trace2):
 	return distance
 
 
-def getFeatureVector(mids):
-	vmax, vmin = getPrincipalComponents(mids)
-	lmax, lmin = getAxisLengths(mids, vmax, vmin)
-	mids = normalize(mids, lmax)
-	edges = getEdges(mids)
+def getFeatureVector(trace):
+	vmax, vmin = getPrincipalComponents(trace)
+	lmax, lmin = getAxisLengths(trace, vmax, vmin)
+	trace = normalize(trace, lmax)
+	edges = getEdges(trace)
 	features = []
 	features.append(getLength(edges))
-	features.append(getArea(mids))
+	features.append(getArea(trace))
 	features.append(lmin/lmax)
-	distance = getDistance(mids)
+	distance = getDistance(trace)
 	# Explicit norm calculated for speed
 	features.append(math.sqrt(distance[0]**2+distance[1]**2+distance[2]**2))
 	features.append(getOrientation(distance, vmax))
-	features.append(getNumIntersections(mids))
+	features.append(getNumIntersections(trace))
 	return features
 
-def normalize(mids, lmax):
-	return np.array([mid/lmax for mid in mids])
+def normalize(trace, lmax):
+	return np.array([mid/lmax for mid in trace])
 
 
-def getEdges(mids):
+def getEdges(trace):
 	edges = []
-	for index in range(len(mids)):
-		edges += [np.subtract(mids[index], mids[index-1])]
+	for index in range(len(trace)):
+		edges += [np.subtract(trace[index], trace[index-1])]
 	return np.array(edges)
 
 def getLength(edges):
 	return np.sum([np.sqrt(edge[0]**2 + edge[1]**2 + edge[1]**2) for edge in edges])
 
-def getArea(mids):
+def getArea(trace):
 	area = 0.0
-	for index in range(len(mids)):
+	for index in range(len(trace)):
 		# Explicit norm calculated for speed
-		v = np.cross(mids[index], mids[index-1])
+		v = np.cross(trace[index], trace[index-1])
 		area += math.sqrt(v[0]**2 + v[1]**2 + v[1]**2)
 	return area
 
-def getDistance(mids):
-	avgX = np.average(mids[:,0])
-	avgY = np.average(mids[:,1])
-	avgZ = np.average(mids[:,2])
+def getDistance(trace):
+	avgX = np.average(trace[:,0])
+	avgY = np.average(trace[:,1])
+	avgZ = np.average(trace[:,2])
 	cm = [avgX, avgY, avgZ]
 	return np.subtract([0,0,0], cm)
 
@@ -61,11 +64,11 @@ def getOrientation(distance, vmax):
 	v = np.cross(distance/math.sqrt(distance[0]**2 + distance[1]**2 + distance[1]**2), vmax)
 	return np.arcsin(math.sqrt(v[0]**2 + v[1]**2 + v[1]**2))
 
-def getAxisLengths(mids, v1, v2):
+def getAxisLengths(trace, v1, v2):
 	"""Get the length of the curve on the major and minor axis, returned in that order.
 	"""
 	transform = np.hstack((v1.reshape(3,1), v2.reshape(3,1)))
-	transformed = transform.T.dot(np.array(mids).T)
+	transformed = transform.T.dot(np.array(trace).T)
 	ranges = np.ptp(transformed, axis=1)
 	ranges = [(ranges[0], v1), (ranges[1], v2)]
 	if ranges[0][0] > ranges[1][0]:
@@ -74,8 +77,8 @@ def getAxisLengths(mids, v1, v2):
 	lmin = ranges[1][0]/2.0
 	return (lmax, lmin)
 
-def getPrincipalComponents(mids):
-	eVal, eVec = getEig(mids)
+def getPrincipalComponents(trace):
+	eVal, eVec = getEig(trace)
 	v1, v2 = findPrincipalComponents(eVal, eVec)
 	return v1, v2
 
@@ -115,14 +118,14 @@ def findPrincipalComponents(eigenvalues, eigenvectors):
 
 	return vec1, vec2
 
-def getNumIntersections(mids):
-	length = len(mids)
+def getNumIntersections(trace):
+	length = len(trace)
 	counter = 0
 	for index in range(length-1):
-		A, B = mids[index], mids[index+1]
+		A, B = trace[index], trace[index+1]
 		for increment in range (2, length-1):
 			increment -= length
-			C, D = mids[index+increment], mids[index+increment+1]
+			C, D = trace[index+increment], trace[index+increment+1]
 			if intersects(A,B,C,D):
 				counter += 1
 				# print str(A) + " - " + str(B)

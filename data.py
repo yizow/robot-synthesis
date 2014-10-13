@@ -1,3 +1,7 @@
+# Contains functions for the input and output of data to the program
+# Reading/writing test results to a file, so we dont have to recompute every time program is run. 
+# Filter traces to only keep ones above a certain threshold of points. 
+
 def printResults(results):
 	with open('results.txt', 'w') as f:
 		for items in results:

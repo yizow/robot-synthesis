@@ -8,14 +8,6 @@ from scipy.interpolate import UnivariateSpline
 # Plot the resulting splines as parametric equations to get the user's curve
 # Generate the list of xyz points by 
 
-# repeat = 4
-# X = [1,0,-1,0]
-# X*=repeat
-# Y = [0,1,0,-1]
-# Y*=repeat
-# Can easily extend this spline representation to 3 dimensions
-# Z = [0,0,0,0]
-# numPoints = len(X)
 
 def getPoints(spline, linspace):
 	points = spline(linspace)

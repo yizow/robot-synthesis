@@ -1,9 +1,12 @@
+# Contains functions to plot results. 
+
 import numpy as np
 from animate import *
 from matplotlib import animation
 import matplotlib.pyplot as plt
 from pylab import *
 
+# DEPRECATED METHOD
 def plotResults_old(results):
 	"""Plotting - Assumes results holds the coordinate of the end effector
 
@@ -33,6 +36,7 @@ def plotResults_old(results):
 		grid()
 		show()
 
+# DEPRECATED METHOD
 def plotResults(results):
 	"""Plotting - Assumes results holds the start-end coordinates of each beam.
 
@@ -71,6 +75,9 @@ def plotResults(results):
 
 def plotResults_mid(results):
 	"""Plots the midpoint of the coupler
+	Assumes results holds the start-end coordinates of each beam.
+
+	results - a list of lists of pairs of xyz-coordinates.
 	"""
 	folderName = "pics_mid/"
 	print "Plotting midpoint of coupler: " + folderName
@@ -91,7 +98,8 @@ def plotResults_mid(results):
 		print counter
 
 def colorGenerator():
-	"""Returns a method that cycles through four different colors, returning one each time. For plotting four different beams
+	"""Helper function
+	Returns a method that cycles through four different colors, returning one each time. For plotting four different beams
 
 	Colors:
 	red, blue, green, black
@@ -133,7 +141,12 @@ def plotComponents(results, components):
 		plt.close()
 		print counter
 
+# Plots the position of the end-effector
 def plotPoI(PoI):
+	"""Assumes PoI holds the coordinates of each point.
+
+	PoI - a list of lists of xyz-coordinates.
+	"""
 	folderName = "pics_PoI/"
 	print "Plotting traces of different PoI: " + folderName
 	counter = 0
@@ -164,6 +177,7 @@ def init():
 	line.set_data([], [])
 	return line,
 
+
 def animateTrace(results, trace):
 	trace = results[trace]
 	def animate(i):
@@ -174,6 +188,7 @@ def animateTrace(results, trace):
 		return line,
 	return animate
 
+# Animates the trace.
 def animate(results):
 	folderName = "animations/"
 	print "Animating: " + folderName

@@ -1,3 +1,5 @@
+# This file contains code that animates the mechanisms and the paths they trace. 
+
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import animation

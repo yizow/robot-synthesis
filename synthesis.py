@@ -8,6 +8,11 @@ If necessary, we then offset coupler position to get end effector
 Options: 
 -h, --help:	Print this text
 -t:	Force recalculation of test data instead of loading from file
+-a: Generate animations of the mechanisms. 
+-p: Generates plots of the end effector
+-m: Generates plots of the midpoint of the coupler 
+-c: Generates plots of the principal components
+-C: Recomputes the principal components instead of loading from file.
 """
 
 from Beam import Beam

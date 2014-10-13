@@ -1,5 +1,6 @@
 from robot import *
-
+# A class that represents a simulated four-bar. 
+# DEPRECATED CLASS
 class fourBar(object):
 
 	"""

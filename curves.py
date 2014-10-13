@@ -1,3 +1,4 @@
+# DEPRECATED CLASS NO LONGER USED
 import numpy as np
 from matplotlib.mlab import PCA
 
