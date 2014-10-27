@@ -39,15 +39,3 @@ def inputTest(filename):
 	zPoints = getPoints(zs, t)
 	trace = zip(xPoints, yPoints, zPoints)
 	return trace
-
-def plotInput(trace):
-	# Plot the user spline for testing
-	# print xPoints
-	# print yPoints
-	xPoints = [point[0] for point in trace]
-	yPoints = [point[1] for point in trace]
-	plt.scatter(xPoints, yPoints)
-	plt.show()
-
-testTrace = inputTest('input.txt')
-# plotInput(trace)

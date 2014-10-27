@@ -5,6 +5,7 @@ from animate import *
 from matplotlib import animation
 import matplotlib.pyplot as plt
 from pylab import *
+from Beam import Beam
 
 # DEPRECATED METHOD
 def plotResults_old(results):
@@ -209,3 +210,10 @@ def animate(results):
 def getMids(trace):
 	mids = [((state[1][0][0]+state[1][1][0])/2, (state[1][0][1]+state[1][1][1])/2, (state[1][0][2]+state[1][1][2])/2) for state in trace]
 	return np.array(mids)
+
+
+def plotTrace(trace):
+	xPoints = [point[0] for point in trace]
+	yPoints = [point[1] for point in trace]
+	plt.scatter(xPoints, yPoints)
+	plt.show()

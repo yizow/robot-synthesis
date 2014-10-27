@@ -30,17 +30,20 @@ from userInput import *
 
 componentsFile = 'results_Components'
 PoIFile = 'PoI'
+parameterLookupFile = 'parameterLookup'
 def start():
 	global results
 	global components
 	global PoI
+	global parameterLookup
 	try:
 		results = loadResults()
 	except IOError:
+		print 'loadResults no file found'
 		results = test()
 		printResults(results)
 		components = getComponents(results)
-		PoI = testPoI()
+		PoI, parameterLookup = testPoI()
 
 	try: 
 		components = np.load(componentsFile + '.npy')
@@ -49,12 +52,14 @@ def start():
 
 	try: 
 		PoI = np.load(PoIFile + '.npy')
+		parameterLookup = np.load(parameterLookupFile + '.npy')
 	except IOError:
-		PoI = testPoI()
+		print '%s %s - not found' % (PoIFile, parameterLookupFile)
+		PoI, parameterLookup = testPoI()
 
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "htpamCcr", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "hrtpamCc", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -69,7 +74,7 @@ def start():
 			printResults(results)
 			filterResults(results)
 		if o in ("-t"):
-			PoI = testPoI()
+			PoI, parameterLookup = testPoI()
 		if o in ("-p"):
 			plotPoI(PoI)
 		if o in ("-a"):
@@ -139,7 +144,7 @@ def test():
 
 					results += [r]
 			progress += 1.0/16
-			print "%s%%" % progress
+			print "%d%%" % (progress*100)
 	return results
 
 def testPoI():
@@ -147,10 +152,13 @@ def testPoI():
 	"""
 	numPoints = 128.0
 	results = []
+	parameterLookup = []
 	progress = 0.0
 	numPoI = 25 # Will round down to nearest integer that is double a perfect square
 	PoIFineness = trunc(sqrt(numPoI/2.0))
+	parameters = []
 
+	print 'Calculating PoI'
 	# Iterate through linkage lengths
 	for inCrankLength in range(1,5):
 		for rockerLength in range(1,5):
@@ -177,18 +185,22 @@ def testPoI():
 								count1 += 1
 								count2 = -1
 								for PoIDistance in range(-int(PoIFineness), int(PoIFineness+1)):
+									parameters += [[inCrankLength, rockerLength, outCrankLength, baseLength, PoIOffset, PoIDistance]]
 									count2 += 1
 									rocker.PoIOffset = PoIOffset
 									rocker.PoIDistance = PoIDistance
 									r[(int(PoIFineness)*2+1)*count1 + count2] += [rocker.PoI()]
-					for trace in r:
+					for trace, p in zip(r, parameters):
 						if len(trace) > 80:
 							results += [trace]
+							parameterLookup += [p]
 							
 			progress += 1.0/16
-			print "%s%%" % progress
+			print "%d%%" % (progress*100)
+
 	np.save(PoIFile, np.array(results))
-	return results
+	np.save(parameterLookupFile, np.array(parameterLookup))
+	return results, parameterLookup
 
 
 def pinConnection(beam1, beam2):
@@ -271,32 +283,186 @@ def printFeatureVectors():
 	for mids in [getMids(trace) for trace in PoI]:
 		print getFeatureVector(mids)
 
+def findClosest(traces, distanceMetric = getDistanceMetric):
+	with open('testFeature.txt', 'w') as f:
+		print 'Finding Closest'
+		div = 32.0
+		progress = 0.0
+		increment = 0.0
+		distances = []
+		counter = 0
+		for trace in traces:
+			if counter >= increment:
+				print "%d%%" % (progress*100)
+				increment += len(traces)/div
+				progress += 1/div
+			counter += 1
+			dist = distanceMetric(trace, testTrace)
+			f.write(str(dist))
+			f.write('\n')
+			distances += [dist]
+		distances = [[distances[index], index] for index in range(len(distances))]
+		# minIndex = 0
+		# for index in range(len(distances)):
+		# 	dist = distances[index]
+		# 	if dist < distances[minIndex]:
+		# 		minIndex = index
+
+	distances.sort()
+	print 'Closest image: %d' % distances[0][1]
+	return distances
+
+
 results = None
 components = None
 line, = (None,)
 PoI = None
-
+parameterLookup = None # index of an image is the same as its filename
+testTrace = inputTest('input.txt')
 start()
 
-with open('testFeature.txt', 'w') as f:
-	div = 32.0
+
+
+
+
+def optimizeParameters(testTrace, index):
+	"""	Takes the testTrace and index of a certain trace's parameters in parameterLookup and further optimizes those parameters
+	based on just the distance between points. 
+
+		Let p be a vector representing the parameters we are optimizing over
+		p = [inCrankLength rockerLength outCrankLength baseLength PoIOffset PoIDistance]
+		Subject to the constraints:
+			baseLength > inCrankLength
+			baseLength > outCrankLength
+		Grashoff Conditions
+			baseLength+rockerLength-inCrankLength-outCrankLength > 0 
+			baseLength-rockerLength-inCrankLength+outCrankLength > 0
+			baseLength+rockerLength-inCrankLength+outCrankLength > 0
+
+	Returns the new parameters as a list
+	"""
+	p = parameterLookup[index]
+	numPoints = 128.0
+	delta = 2.0
+	numPoI = 25 # Will round down to nearest integer that is double a perfect square
+	PoIFineness = trunc(sqrt(numPoI/2.0))
+	optimizedParameters = []
+	results = []
 	progress = 0.0
-	increment = 0.0
-	distances = []
-	counter = 0
-	for trace in PoI:
-		if counter >= increment:
-			print "%s%%" % progress
-			increment += len(PoI)/div
-			progress += 1/div
-		counter += 1
-		dist = getDistanceMetric(trace, testTrace)
-		f.write(str(dist))
-		f.write('\n')
-		distances += [dist]
-	distances = [[distances[index], index+1] for index in range(len(distances))]
-	# minIndex = 0
-	# for index in range(len(distances)):
-	# 	dist = distances[index]
-	# 	if dist < distances[minIndex]:
-	# 		minIndex = index
+	parameters = []
+
+	# constraints = (	{'type': 'ineq',
+	# 				'fun' : lambda x: np.array(x[3] - x[0])},
+	# 				{'type': 'ineq',
+	# 				'fun' : lambda x: np.array(x[3] - x[2])},
+	# 				{'type': 'ineq',
+	# 				'fun' : lambda x: np.array(x[3] + x[1] - x[0] - x[2])},
+	# 				{'type': 'ineq',
+	# 				'fun' : lambda x: np.array(x[3] - x[1] - x[0] + x[2])},
+	# 				{'type': 'ineq',
+	# 				'fun' : lambda x: np.array(x[3] + x[1] - x[0] + x[2])})
+	# def optimizingFunction(p):
+	# 	trace = []
+	# 	inCrank = Beam(p[0])
+	# 	rocker = Beam(p[1])
+	# 	outCrank = Beam(p[2])
+	# 	base = Beam(p[3])
+	# 	PoIOffset = p[4]
+	# 	PoIDistance = p[5]
+	# 	rocker.PoIOffset = PoIOffset
+	# 	rocker.PoIDistance = PoIDistance
+	# 	for angle in range(1,int(numPoints)):
+	# 		a = angle*pi/2.0/(numPoints/4)
+	# 		position = buildState(inCrank, rocker, outCrank, base, a)
+	# 		if not position:
+	# 			continue
+	# 		trace += [rocker.PoI()]
+	# 	return getDistanceMetric(testTrace, trace)
+	# return optimize(optimizingFunction, p, method = 'L-BFGS-B', bounds = ((parameterLookup[index][0]-delta, parameterLookup[index][0]+delta),(parameterLookup[index][1]-delta, parameterLookup[index][1]+delta),(parameterLookup[index][2]-delta, parameterLookup[index][2]+delta),(parameterLookup[index][3]-delta, parameterLookup[index][3]+delta),(parameterLookup[index][4]-delta, parameterLookup[index][4]+delta),(parameterLookup[index][5]-delta, parameterLookup[index][5]+delta)),options = {'maxiter':10})
+
+	print 'Further Optimizing'
+	# Iterate through linkage lengths
+	fineness = 5
+	print 'Generating finer traces'
+	for inCrankLength in range(1,fineness):
+		inCrankLength = delta/fineness*(inCrankLength - fineness/2.0)+p[0]
+		for rockerLength in range(1,fineness):
+			rockerLength = delta/fineness*(rockerLength - fineness/2.0)+p[1]
+			for outCrankLength in range(1,fineness):
+				outCrankLength = delta/fineness*(outCrankLength - fineness/2.0)+p[2]
+				for baseLength in range(1,fineness):
+					baseLength = delta/fineness*(baseLength - fineness/2.0)+p[3]
+
+					if inCrankLength > baseLength or outCrankLength > baseLength:
+						continue
+					# Check Grashof condition
+					if not (baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0):
+						continue
+
+					inCrank = Beam(inCrankLength)
+					rocker = Beam(rockerLength)
+					outCrank = Beam(outCrankLength)
+					base = Beam(baseLength)
+					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
+					for angle in range(1,int(numPoints)):
+						a = angle*pi/2.0/(numPoints/4)
+						position = buildState(inCrank, rocker, outCrank, base, a)
+						if position:
+							# Iterate through positions of Point of Interest on rocker
+							count1 = -1
+							for PoIOffset in [p[4]+x/PoIFineness*delta for x in range(-int(PoIFineness/3), int((PoIFineness+1)/3))]:
+								count1 += 1
+								count2 = -1
+								for PoIDistance in [p[5]+x*delta for x in range(-int(PoIFineness/3), int((PoIFineness+1)/3))]:
+									parameters += [[inCrankLength, rockerLength, outCrankLength, baseLength, PoIOffset, PoIDistance]]
+									count2 += 1
+									rocker.PoIOffset = PoIOffset
+									rocker.PoIDistance = PoIDistance
+									r[(int(PoIFineness)*2+1)*count1 + count2] += [rocker.PoI()]
+					for trace, p in zip(r, parameters):
+						if len(trace) > 80:
+							results += [trace]
+							optimizedParameters += [p]						
+			progress += 1.0/16
+			print "%d%%" % (progress*100)
+	
+	print '# of further tests: %d' % len(results)
+	print 'Calculating distance metrics'
+	metrics = findClosest(results, lambda t1,t2: getDistanceVectors(t1,t2)[0])
+	print 'Parameters:'
+	print optimizedParameters[metrics[0][1]]
+	return results, optimizedParameters, metrics
+
+
+
+	# closest:757
+
+def plotParameters(p):
+	""" Used mainly for debugging, as a convenience method to plot using only parameters, so not in plotting.py"""
+	trace = traceFromParameters(p)
+	plotTrace(trace)
+
+def plotNormalized(trace):
+	vmax, vmin = getPrincipalComponents(trace)
+	lmax, lmin = getAxisLengths(trace, vmax, vmin)
+	trace = normalize(trace, lmax)
+	plotTrace(trace)
+
+def traceFromParameters(p):
+	numPoints = 128
+	trace = []
+	inCrank = Beam(p[0])
+	rocker = Beam(p[1])
+	outCrank = Beam(p[2])
+	base = Beam(p[3])
+	PoIOffset = p[4]
+	PoIDistance = p[5]
+	rocker.PoIOffset = PoIOffset
+	rocker.PoIDistance = PoIDistance
+	for angle in range(1,int(numPoints)):
+		a = angle*pi/2.0/(numPoints/4)
+		position = buildState(inCrank, rocker, outCrank, base, a)
+		if not position:
+			continue
+		trace += [rocker.PoI()]
+	return trace

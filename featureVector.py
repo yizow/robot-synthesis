@@ -164,6 +164,15 @@ def getDistanceVectors(T1, T2):
 	if len(T1) > len(T2):
 		T1, T2 = T2, T1
 
+	# Normalize traces
+	vmax, vmin = getPrincipalComponents(T1)
+	lmax, lmin = getAxisLengths(T1, vmax, vmin)
+	T1 = normalize(T1, lmax)
+	vmax, vmin = getPrincipalComponents(T2)
+	lmax, lmin = getAxisLengths(T2, vmax, vmin)
+	T2 = normalize(T2, lmax)
+
+
 	T1Curvature, T2Curvature = discreteCurvature(T1), discreteCurvature(T2)
 	dPos, dAngle = [], []
 	for increment in range(len(T2)):
