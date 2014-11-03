@@ -217,3 +217,10 @@ def plotTrace(trace):
 	yPoints = [point[1] for point in trace]
 	plt.scatter(xPoints, yPoints)
 	plt.show()
+
+def plotTraces(traces):
+	for trace in traces: 
+		xPoints = [point[0] for point in trace]
+		yPoints = [point[1] for point in trace]
+		plt.scatter(xPoints, yPoints)
+	plt.show()

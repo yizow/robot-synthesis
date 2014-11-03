@@ -31,6 +31,7 @@ from userInput import *
 componentsFile = 'results_Components'
 PoIFile = 'PoI'
 parameterLookupFile = 'parameterLookup'
+NUMPOINTS = 128
 def start():
 	global results
 	global components
@@ -117,7 +118,6 @@ def test():
 
 	results is a list of the start-end coordinates of every beam for each state.
 	"""
-	numPoints = 128.0
 	results = []
 	progress = 0.0
 	# Iterate through linkage lengths
@@ -136,8 +136,8 @@ def test():
 					outCrank = Beam(outCrankLength)
 					base = Beam(baseLength)
 					r = []
-					for angle in range(1,int(numPoints)):
-						a = angle*pi/2.0/(numPoints/4)
+					for angle in range(1,int(NUMPOINTS)):
+						a = angle*pi/2.0/(NUMPOINTS/4)
 						position = buildState(inCrank, rocker, outCrank, base, a)
 						if position:
 							r += [position]
@@ -150,7 +150,6 @@ def test():
 def testPoI():
 	"""Same as above, but only calculates the PoI not the state
 	"""
-	numPoints = 128.0
 	results = []
 	parameterLookup = []
 	progress = 0.0
@@ -175,8 +174,8 @@ def testPoI():
 					outCrank = Beam(outCrankLength)
 					base = Beam(baseLength)
 					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
-					for angle in range(1,int(numPoints)):
-						a = angle*pi/2.0/(numPoints/4)
+					for angle in range(1,int(NUMPOINTS)):
+						a = angle*pi/2.0/(NUMPOINTS/4)
 						position = buildState(inCrank, rocker, outCrank, base, a)
 						if position:
 							# Iterate through positions of Point of Interest on rocker
@@ -313,16 +312,29 @@ def findClosest(traces, distanceMetric = getDistanceMetric):
 	return distances
 
 
-results = None
-components = None
-line, = (None,)
-PoI = None
-parameterLookup = None # index of an image is the same as its filename
-testTrace = inputTest('input.txt')
-start()
 
+def optimizeParametersNM(testTrace, index):
+	p = parameterLookup[index]
 
+	def optimizingFunction(p):
+		trace = []
+		inCrank = Beam(p[0])
+		rocker = Beam(p[1])
+		outCrank = Beam(p[2])
+		base = Beam(p[3])
+		PoIOffset = p[4]
+		PoIDistance = p[5]
+		rocker.PoIOffset = PoIOffset
+		rocker.PoIDistance = PoIDistance
+		for angle in range(1,int(NUMPOINTS)):
+			a = angle*pi/2.0/(NUMPOINTS/4)
+			position = buildState(inCrank, rocker, outCrank, base, a)
+			if not position:
+				continue
+			trace += [rocker.PoI()]
+		return getDistanceMetric(testTrace, trace)
 
+	return optimize(optimizingFunction, p, method = 'Nelder-Mead')
 
 
 def optimizeParameters(testTrace, index):
@@ -342,7 +354,6 @@ def optimizeParameters(testTrace, index):
 	Returns the new parameters as a list
 	"""
 	p = parameterLookup[index]
-	numPoints = 128.0
 	delta = 2.0
 	numPoI = 25 # Will round down to nearest integer that is double a perfect square
 	PoIFineness = trunc(sqrt(numPoI/2.0))
@@ -371,8 +382,8 @@ def optimizeParameters(testTrace, index):
 	# 	PoIDistance = p[5]
 	# 	rocker.PoIOffset = PoIOffset
 	# 	rocker.PoIDistance = PoIDistance
-	# 	for angle in range(1,int(numPoints)):
-	# 		a = angle*pi/2.0/(numPoints/4)
+	# 	for angle in range(1,int(NUMPOINTS)):
+	# 		a = angle*pi/2.0/(NUMPOINTS/4)
 	# 		position = buildState(inCrank, rocker, outCrank, base, a)
 	# 		if not position:
 	# 			continue
@@ -404,8 +415,8 @@ def optimizeParameters(testTrace, index):
 					outCrank = Beam(outCrankLength)
 					base = Beam(baseLength)
 					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
-					for angle in range(1,int(numPoints)):
-						a = angle*pi/2.0/(numPoints/4)
+					for angle in range(1,int(NUMPOINTS)):
+						a = angle*pi/2.0/(NUMPOINTS/4)
 						position = buildState(inCrank, rocker, outCrank, base, a)
 						if position:
 							# Iterate through positions of Point of Interest on rocker
@@ -449,7 +460,6 @@ def plotNormalized(trace):
 	plotTrace(trace)
 
 def traceFromParameters(p):
-	numPoints = 128
 	trace = []
 	inCrank = Beam(p[0])
 	rocker = Beam(p[1])
@@ -459,10 +469,52 @@ def traceFromParameters(p):
 	PoIDistance = p[5]
 	rocker.PoIOffset = PoIOffset
 	rocker.PoIDistance = PoIDistance
-	for angle in range(1,int(numPoints)):
-		a = angle*pi/2.0/(numPoints/4)
+	for angle in range(1,int(NUMPOINTS)):
+		a = angle*pi/2.0/(NUMPOINTS/4)
 		position = buildState(inCrank, rocker, outCrank, base, a)
 		if not position:
 			continue
 		trace += [rocker.PoI()]
 	return trace
+
+def plotParameters(ps):
+	traces = []
+	for p in ps:
+		trace = traceFromParameters(p)
+		traces += [trace]
+	plotTraces(traces)
+
+
+
+def demo():
+	print 'Finding closest: coarse'
+	coarse = findClosest(PoI)
+	closestCoarse = coarse[0][1]
+	print 'Optimizing on index: %d' % closestCoarse
+	optimized = optimizeParametersNM(testTrace, closestCoarse)
+
+	plt.subplot(311)
+	plt.plot([x[0]for x in testTrace], [x[1] for x in testTrace])
+	plt.title('Test Trace')
+
+	plt.subplot(312)
+	plt.plot([x[0]for x in PoI[closestCoarse]], [x[1] for x in PoI[closestCoarse]])
+	plt.title('Coarse: Closest Trace')
+
+	plt.subplot(313)
+	# t = traceFromParameters(optimized[1][optimized[2][0][1]])
+	t = traceFromParameters(optimized.x)
+	plt.plot([x[0]for x in t], [x[1] for x in t])
+	plt.title('Optimized')
+
+	plt.show()
+	return coarse, optimized
+
+
+results = None
+components = None
+line, = (None,)
+PoI = None
+parameterLookup = None # index of an image is the same as its filename
+testTrace = inputTest('input.txt')
+start()
