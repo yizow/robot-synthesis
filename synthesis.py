@@ -102,15 +102,6 @@ def euler(theta):
 	return tr2eul(r2t(rotz(theta)))
 
 
-
-
-
-# b1 = Beam(3)
-# c = Beam(3)
-# b2 = Beam(3)
-# b = Beam(3)
-# a = pi/6
-
 def test():
 	"""Iterate through beam lengths and angles
 	beam lengths range from 1 to 4
@@ -251,13 +242,7 @@ def buildState(beam1, coupler, beam2, base, angle):
 		dx = coupler.position[0]-base.position[0]
 		dy = coupler.position[1]
 		hyp = sqrt(dx**2 + dy**2)
-		# if hyp == 0:
-		# 	print coupler.position
-		# 	print base.position
-		# 	print beam1.position
-		# 	print beam1.rotation
 		angle = acos(dx/hyp)
-		# return ((-pi/2,angle),)
 		return ((beam1.rotation[0]-pi,angle),)
 
 	solveState(0)
@@ -265,9 +250,20 @@ def buildState(beam1, coupler, beam2, base, angle):
 	if o.success and constraint(o.x[0]) < constraintBound:
 		solveState(o.x[0])
 		# print constraint(o.x[0])
-		return [[list(beam.start()), list(beam.end())] for beam in (beam1, coupler, beam2, base)]
+		ret = [[list(beam.start()), list(beam.end())] for beam in (beam1, coupler, beam2, base)]
+		ret += coupler.offsetBeam()
+		return ret
 	else:
-		return None
+		return o
+
+def buildStateParam(param, angle = 0.1):
+	beam1 = Beam(param[0])
+	coupler = Beam(param[1])
+	coupler.PoIOffset = param[4]
+	coupler.PoIDistance = param[5]
+	beam2 = Beam(param[2])
+	base = Beam(param[3])
+	return buildState(beam1, coupler, beam2, base, angle)
 
 def getComponents(results):
 	print "Getting principal components"
@@ -301,11 +297,6 @@ def findClosest(traces, distanceMetric = getDistanceMetric):
 			f.write('\n')
 			distances += [dist]
 		distances = [[distances[index], index] for index in range(len(distances))]
-		# minIndex = 0
-		# for index in range(len(distances)):
-		# 	dist = distances[index]
-		# 	if dist < distances[minIndex]:
-		# 		minIndex = index
 
 	distances.sort()
 	print 'Closest image: %d' % distances[0][1]
@@ -362,35 +353,6 @@ def optimizeParameters(testTrace, index):
 	progress = 0.0
 	parameters = []
 
-	# constraints = (	{'type': 'ineq',
-	# 				'fun' : lambda x: np.array(x[3] - x[0])},
-	# 				{'type': 'ineq',
-	# 				'fun' : lambda x: np.array(x[3] - x[2])},
-	# 				{'type': 'ineq',
-	# 				'fun' : lambda x: np.array(x[3] + x[1] - x[0] - x[2])},
-	# 				{'type': 'ineq',
-	# 				'fun' : lambda x: np.array(x[3] - x[1] - x[0] + x[2])},
-	# 				{'type': 'ineq',
-	# 				'fun' : lambda x: np.array(x[3] + x[1] - x[0] + x[2])})
-	# def optimizingFunction(p):
-	# 	trace = []
-	# 	inCrank = Beam(p[0])
-	# 	rocker = Beam(p[1])
-	# 	outCrank = Beam(p[2])
-	# 	base = Beam(p[3])
-	# 	PoIOffset = p[4]
-	# 	PoIDistance = p[5]
-	# 	rocker.PoIOffset = PoIOffset
-	# 	rocker.PoIDistance = PoIDistance
-	# 	for angle in range(1,int(NUMPOINTS)):
-	# 		a = angle*pi/2.0/(NUMPOINTS/4)
-	# 		position = buildState(inCrank, rocker, outCrank, base, a)
-	# 		if not position:
-	# 			continue
-	# 		trace += [rocker.PoI()]
-	# 	return getDistanceMetric(testTrace, trace)
-	# return optimize(optimizingFunction, p, method = 'L-BFGS-B', bounds = ((parameterLookup[index][0]-delta, parameterLookup[index][0]+delta),(parameterLookup[index][1]-delta, parameterLookup[index][1]+delta),(parameterLookup[index][2]-delta, parameterLookup[index][2]+delta),(parameterLookup[index][3]-delta, parameterLookup[index][3]+delta),(parameterLookup[index][4]-delta, parameterLookup[index][4]+delta),(parameterLookup[index][5]-delta, parameterLookup[index][5]+delta)),options = {'maxiter':10})
-
 	print 'Further Optimizing'
 	# Iterate through linkage lengths
 	fineness = 5
@@ -440,13 +402,11 @@ def optimizeParameters(testTrace, index):
 	print '# of further tests: %d' % len(results)
 	print 'Calculating distance metrics'
 	metrics = findClosest(results, lambda t1,t2: getDistanceVectors(t1,t2)[0])
+	# metrics = findClosest(results, lambda t1,t2: getDistanceMetric(t1,t2))
 	print 'Parameters:'
 	print optimizedParameters[metrics[0][1]]
 	return results, optimizedParameters, metrics
 
-
-
-	# closest:757
 
 def plotParameters(p):
 	""" Used mainly for debugging, as a convenience method to plot using only parameters, so not in plotting.py"""
@@ -477,7 +437,7 @@ def traceFromParameters(p):
 		trace += [rocker.PoI()]
 	return trace
 
-def plotParameters(ps):
+def plotParametersMultiple(ps):
 	traces = []
 	for p in ps:
 		trace = traceFromParameters(p)
@@ -486,29 +446,6 @@ def plotParameters(ps):
 
 
 
-def demo():
-	print 'Finding closest: coarse'
-	coarse = findClosest(PoI)
-	closestCoarse = coarse[0][1]
-	print 'Optimizing on index: %d' % closestCoarse
-	optimized = optimizeParametersNM(testTrace, closestCoarse)
-
-	plt.subplot(311)
-	plt.plot([x[0]for x in testTrace], [x[1] for x in testTrace])
-	plt.title('Test Trace')
-
-	plt.subplot(312)
-	plt.plot([x[0]for x in PoI[closestCoarse]], [x[1] for x in PoI[closestCoarse]])
-	plt.title('Coarse: Closest Trace')
-
-	plt.subplot(313)
-	# t = traceFromParameters(optimized[1][optimized[2][0][1]])
-	t = traceFromParameters(optimized.x)
-	plt.plot([x[0]for x in t], [x[1] for x in t])
-	plt.title('Optimized')
-
-	plt.show()
-	return coarse, optimized
 
 
 results = None
@@ -518,3 +455,84 @@ PoI = None
 parameterLookup = None # index of an image is the same as its filename
 testTrace = inputTest('input.txt')
 start()
+
+
+def demo():
+	print 'Finding closest: coarse'
+	coarse = findClosest(PoI)
+	closestCoarse = coarse[0][1]  # 709
+	print 'Optimizing on index: %d' % closestCoarse
+	optimized = optimizeParameters(testTrace, closestCoarse)
+	showDemo(closestCoarse, optimized)
+	return coarse, optimized
+
+
+def showDemo(closestCoarse, optimized):
+	def init():
+		for line in lines:
+			line.set_data([],[])
+		return lines
+
+	def animateTrace(param, frames):
+		angleIncrement = 2*pi/frames
+		def animate(i):
+			i = i+1
+			state = buildStateParam(param, angle=i*angleIncrement)
+			if not type(state) == list:
+				init()
+			else:
+				mechanismX, mechanismY = [],[]
+				for i in range(4):
+					beams = state[i]
+					mechanismX += [beams[0][0]]
+					mechanismY += [beams[0][1]]
+				lines[0].set_data(mechanismX, mechanismY)
+	            mechanismX = [state[4][0][0], state[4][1][0],state[5][1][0]] 
+	            mechanismY = [state[4][0][1], state[4][1][1],state[5][1][1]] 
+				lines[1].set_data(mechanismX, mechanismY)
+			return tuple(lines)
+		return animate
+	param = optimized[1][optimized[2][0][1]]
+
+	f = plt.figure()
+	ax1 = plt.subplot(511)
+	ax2 = plt.subplot(512, sharex=ax1, sharey=ax1)
+	ax3 = plt.subplot(513, sharex=ax1, sharey=ax1)
+	ax4 = plt.subplot(514, sharex=ax1, sharey=ax1)
+	# ax5 = plt.subplot(515, sharex=ax1, sharey=ax1)
+
+	ax1.scatter([x[0]for x in testTrace], [x[1] for x in testTrace])
+	ax1.set_title('Test Trace')
+
+	ax2.scatter([x[0]for x in PoI[closestCoarse-1]], [x[1] for x in PoI[closestCoarse-1]])
+	ax2.set_title('Coarse: Closest Trace')
+
+	t = traceFromParameters(param)
+	# t = traceFromParameters(optimized.x)
+	ax3.scatter([x[0]for x in t], [x[1] for x in t])
+	ax3.set_title('Optimized')
+
+	t_p = scale(testTrace, param)
+	t2 = traceFromParameters(t_p)
+	ax4.scatter([x[0]for x in t2], [x[1] for x in t2])
+	ax4.set_title('Scaled Optimized')
+
+	state = buildStateParam(t_p, angle=1.5)
+	for line in state:
+		temp = zip(line[0],line[1])
+		ax4.plot(temp[0], temp[1])
+
+	ax5 = plt.subplot(515)
+	ax5.scatter([x[0]for x in t2], [x[1] for x in t2])
+	ax5.set_title('Animation')
+	l, = plt.plot([], [], lw=2,color='black')
+	l2, = plt.plot([], [], lw=2,color='red')
+	lines = [l, l2]
+	plt.xlim(ax1.get_xlim()[0], ax1.get_xlim()[1])
+	plt.ylim(ax1.get_ylim()[0], ax1.get_ylim()[1])
+	# animateParam(t_p, lines)
+	line_ani = animation.FuncAnimation(f, animateTrace(t_p, frames), interval=30, init_func=init, frames=frames)
+	plt.show()
+	
+# plt.show()
+# return coarse, optimized

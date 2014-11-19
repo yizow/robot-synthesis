@@ -14,7 +14,7 @@ class Beam(Link):
 	zeroThreshold = .00001
 	
 	
-	def __init__(self, length, PoIOffset = None, PoIDistance = None):
+	def __init__(self, length, PoIOffset = 0.0, PoIDistance = 0.0):
 		Link.__init__(self, 0,length,0,0)
 		self.position = [0.0,0.0,0.0]
 		# rotation about Z axis, X axis, Z axis
@@ -47,6 +47,11 @@ class Beam(Link):
 		intersect = travel(self.position, self.rotation[0], self.PoIOffset*self.A)
 		PoI = travel(intersect, self.rotation[0]+pi/2, self.PoIDistance)
 		return PoI
+
+	def offsetBeam(self):
+		intersect = travel(self.position, self.rotation[0], self.PoIOffset*self.A)
+		end = self.PoI()
+		return [[list(self.position), list(intersect)], [list(intersect), list(end)]]
 
 def travel(startPos, angle, distance):
 	"""Utility function to find relative positions

@@ -71,7 +71,7 @@ def getAxisLengths(trace, v1, v2):
 	transformed = transform.T.dot(np.array(trace).T)
 	ranges = np.ptp(transformed, axis=1)
 	ranges = [(ranges[0], v1), (ranges[1], v2)]
-	if ranges[0][0] > ranges[1][0]:
+	if ranges[0][0] < ranges[1][0]:
 		ranges = [ranges[1], ranges[0]]
 	lmax = ranges[0][0]/2.0
 	lmin = ranges[1][0]/2.0
@@ -198,3 +198,10 @@ def discreteCurvature(curve):
 	for index in range(len(edges)):
 		curvatures += [np.cross(2*normEdges[index-1], normEdges[index])/(1+np.dot(normEdges[index-1], normEdges[index]))]
 	return np.array(curvatures)
+
+def scale(testTrace, curve):
+	""" 'Un-normalizes' curve to be at the same scale as testTrace
+	"""
+	vmax, vmin = getPrincipalComponents(testTrace)
+	lmax, lmin = getAxisLengths(testTrace, vmax, vmin)
+	return np.array([np.multiply(point,lmax) for point in curve])

@@ -1,7 +1,6 @@
 # Contains functions to plot results. 
 
 import numpy as np
-from animate import *
 from matplotlib import animation
 import matplotlib.pyplot as plt
 from pylab import *
@@ -156,7 +155,7 @@ def plotPoI(PoI):
 	progress = 0
 	for trace in PoI:
 		plt.clf()
-		ax = plt.axes(xlim=(-8,8), ylim=(-8,8	))
+		ax = plt.axes(xlim=(-8,8), ylim=(-8,8))
 		counter += 1
 		if len(trace) == 1:
 			continue
@@ -171,7 +170,6 @@ def plotPoI(PoI):
 			checkpoint += length/16.0
 			print "%s%%" % progress
 	plt.close()
-
 
 
 def init():
