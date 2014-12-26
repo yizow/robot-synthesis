@@ -177,18 +177,19 @@ def init():
 	return line,
 
 
-def animateTrace(results, trace):
-	trace = results[trace]
-	def animate(i):
-		structure = trace[i]
-		thisx = [structure[_][0][0] for _ in range(4)]
-		thisy = [structure[_][0][1] for _ in range(4)]
-		line.set_data(thisx, thisy)
-		return line,
-	return animate
 
 # Animates the trace.
 def animate(results):
+	def animateTrace(results, trace):
+		trace = results[trace]
+		def animate(i):
+			structure = trace[i]
+			thisx = [structure[_][0][0] for _ in range(4)]
+			thisy = [structure[_][0][1] for _ in range(4)]
+			line.set_data(thisx, thisy)
+			return line,
+		return animate
+		
 	folderName = "animations/"
 	print "Animating: " + folderName
 	global line
