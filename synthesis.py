@@ -7,15 +7,13 @@ If necessary, we then offset coupler position to get end effector
 
 Options: 
 -h, --help:	Print this text
--t:	Force recalculation of test data instead of loading from file
+-d:	Force recalculation of database instead of loading from file
 -a: Generate animations of the mechanisms. 
 -p: Generates plots of the end effector
 -m: Generates plots of the midpoint of the coupler 
--c: Generates plots of the principal components
--C: Recomputes the principal components instead of loading from file.
 """
 
-from Beam import Beam
+from Beam2 import Beam
 from Line import Line
 from math import *
 from operator import *
@@ -28,42 +26,34 @@ from plotting import *
 from data import *
 from featureVector import *
 from userInput import *
+import construct
 
-componentsFile = 'results_Components'
+mechanismFile = 'mechanisms'
 PoIFile = 'PoI'
 PoIFileLine = 'PoILine'
 parameterLookupFile = 'parameterLookup'
 parameterLookupFileLine = 'parameterLookupLine'
 optimizationsFolder = 'pics_optimizations/'
 NUMPOINTS = 128
+TRACEMINLEN = 80
+
+mechanisms, PoI, parameterLookup = [], [], []
+
 def start():
-	global results
-	global components
-	global PoI
-	global parameterLookup
 	global PoILine
 	global parameterLookupLine
-	try:
-		results = loadResults()
-	except IOError:
-		print 'loadResults no file found'
-		results = test()
-		printResults(results)
-		components = getComponents(results)
-		PoI, parameterLookup = testPoI()
 
 	try: 
-		components = np.load(componentsFile + '.npy')
-	except IOError:
-		components = getComponents(results)
-
-	try: 
+		mechanisms = np.load(mechanismFile + '.npy')
 		PoI = np.load(PoIFile + '.npy')
 		parameterLookup = np.load(parameterLookupFile + '.npy')
 	except IOError:
-		print '%s %s - not found' % (PoIFile, parameterLookupFile)
-		PoI, parameterLookup = testPoI()
-
+		print '%s %s %s - not found' % (mechanismFile, PoIFile, parameterLookupFile)
+		buildDatabase(mechanisms, PoI, parameterLookup)
+		np.save(mechanismFile, np.array(mechanisms))
+		np.save(PoIFile, np.array(PoI))
+		np.save(parameterLookupFile, np.array(parameterLookup))
+		
 	try: 
 		PoILine = np.load(PoIFileLine + '.npy')
 		parameterLookupLine = np.load(parameterLookupFileLine + '.npy')
@@ -73,7 +63,7 @@ def start():
 
 	# parse command line options
  	try:
-		opts, args = getopt.getopt(sys.argv[1:], "hrtpamCc", ["help"])
+		opts, args = getopt.getopt(sys.argv[1:], "hrdpam", ["help"])
 	except getopt.error, msg:
 		print msg
 		print "for help use --help"
@@ -83,22 +73,17 @@ def start():
 		if o in ("-h", "--help"):
 			print __doc__
 			sys.exit(0)
-		if o in ("-r"):
-			results = test()
-			printResults(results)
-			filterResults(results)
-		if o in ("-t"):
-			PoI, parameterLookup = testPoI()
+		if o in ("-d"):
+			buildDatabase(mechanisms, PoI, parameterLookup)
+			np.save(mechanismFile, np.array(mechanisms))
+			np.save(PoIFile, np.array(PoI))
+			np.save(parameterLookupFile, np.array(parameterLookup))
 		if o in ("-p"):
 			plotPoI(PoI)
 		if o in ("-a"):
-			animate(results)
+			animate(mechanisms)
 		if o in ("-m"):
-			plotResults_mid(results)
-		if o in ("-C"):
-			components = getComponents(results)
-		if o in ("-c"):
-			plotComponents(results, components)
+			plotResults_mid(mechanisms)
 	# process arguments
 	for arg in args:
 		process(arg) # process() is defined elsewhere
@@ -114,96 +99,6 @@ def euler(theta):
 	"""
 	return tr2eul(r2t(rotz(theta)))
 
-
-def test():
-	"""Iterate through beam lengths and angles
-	beam lengths range from 1 to 4
-	angle increments of pi/8 
-
-	results is a list of the start-end coordinates of every beam for each state.
-	"""
-	results = []
-	progress = 0.0
-	# Iterate through linkage lengths
-	for inCrankLength in range(1,5):
-		for rockerLength in range(1,5):
-			for outCrankLength in range(1,5):
-				for baseLength in range(1,5):
-					if inCrankLength > baseLength or outCrankLength > baseLength:
-						continue
-					# Check Grashof condition
-					if not (baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0):
-						continue
-
-					inCrank = Beam(inCrankLength)
-					rocker = Beam(rockerLength)
-					outCrank = Beam(outCrankLength)
-					base = Beam(baseLength)
-					r = []
-					for angle in range(1,int(NUMPOINTS)):
-						a = angle*pi/2.0/(NUMPOINTS/4)
-						position = buildState(inCrank, rocker, outCrank, base, a)
-						if position:
-							r += [position]
-
-					results += [r]
-			progress += 1.0/16
-			print "%d%%" % (progress*100)
-	return results
-
-def testPoI():
-	"""Same as test(), but only calculates the PoI not the state
-	"""
-	results = []
-	parameterLookup = []
-	progress = 0.0
-	numPoI = 25 # Will round down to nearest integer that is double a perfect square
-	PoIFineness = trunc(sqrt(numPoI/2.0))
-	parameters = []
-
-	print 'Calculating PoI'
-	# Iterate through linkage lengths
-	for inCrankLength in range(1,5):
-		for rockerLength in range(1,5):
-			for outCrankLength in range(1,5):
-				for baseLength in range(1,5):
-					if inCrankLength > baseLength or outCrankLength > baseLength:
-						continue
-					# Check Grashof condition
-					if not (baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0):
-						continue
-
-					inCrank = Beam(inCrankLength)
-					rocker = Beam(rockerLength)
-					outCrank = Beam(outCrankLength)
-					base = Beam(baseLength)
-					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
-					for angle in range(1,int(NUMPOINTS)):
-						a = angle*pi/2.0/(NUMPOINTS/4)
-						position = buildState(inCrank, rocker, outCrank, base, a)
-						if position:
-							# Iterate through positions of Point of Interest on rocker
-							count1 = -1
-							for PoIOffset in [x/PoIFineness for x in range(-int(PoIFineness), int(PoIFineness+1))]:
-								count1 += 1
-								count2 = -1
-								for PoIDistance in range(-int(PoIFineness), int(PoIFineness+1)):
-									parameters += [[inCrankLength, rockerLength, outCrankLength, baseLength, PoIOffset, PoIDistance]]
-									count2 += 1
-									rocker.PoIOffset = PoIOffset
-									rocker.PoIDistance = PoIDistance
-									r[(int(PoIFineness)*2+1)*count1 + count2] += [rocker.PoI()]
-					for trace, p in zip(r, parameters):
-						if len(trace) > 80:
-							results += [trace]
-							parameterLookup += [p]
-							
-			progress += 1.0/16
-			print "%d%%" % (progress*100)
-
-	np.save(PoIFile, np.array(results))
-	np.save(parameterLookupFile, np.array(parameterLookup))
-	return results, parameterLookup
 
 def testPoILine():
 	"""Same as testPoI(), but uses the mechanism with a constraining line
@@ -224,13 +119,13 @@ def testPoILine():
 				for A in range(1,4):
 					A = A+0.0
 					lineTrack.a = A
-					inCrank = Beam(inCrankLength)
-					rocker = Beam(rockerLength)
-					outCrank = Beam(outCrankLength)
+					inCrank = Beam2(inCrankLength)
+					rocker = Beam2(rockerLength)
+					outCrank = Beam2(outCrankLength)
 					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
 					for angle in range(1,int(NUMPOINTS)):
 						a = angle*pi/2.0/(NUMPOINTS/4)
-						position = buildStateLine(inCrank, rocker, outCrank, a, lineTrack)
+						position = construct.buildStateLine(inCrank, rocker, outCrank, a, lineTrack)
 						if position:
 							# Iterate through positions of Point of Interest on rocker
 							count1 = -1
@@ -255,147 +150,6 @@ def testPoILine():
 	np.save(PoIFileLine, np.array(results))
 	np.save(parameterLookupFileLine, np.array(parameterLookup))
 	return results, parameterLookup
-
-def pinConnection(beam1, beam2):
-	"""Uses the end pin on beam1 and the start pin of beam2
-	"""
-	posConstraint = map(abs, map(sub, beam1.end(), beam2.start()))
-	# rotConstraint = map(abs, map(sub, beam1.position, beam2.position))
-	rotConstraint = np.linalg.norm(cross(beam1.axis, beam2.axis))
-	return posConstraint + [rotConstraint]
-
-
-def buildConstraint(beam1, coupler, beam2, base):
-	return np.add(np.add(pinConnection(beam1, coupler), pinConnection(coupler, beam2)), np.add(pinConnection(beam2, base), pinConnection(base, beam1)))
-
-def buildState(beam1, coupler, beam2, base, angle):
-	"""Returns none if optimization fails to find a zero (impossible state)
-	Otherwise, returns a list of the start and end xyz-coordinates of  
-	each beam in the state.
-	"""
-	constraintBound = 0.001
-
-	base.position = [base.A,0.0,0.0]
-	base.rotation = [pi,0.0,0.0]
-	beam1.position = [0.0,0.0,0.0]
-	beam1.rotation = [angle,0.0,0.0]
-	coupler.position = [beam1.A*cos(beam1.rotation[0]), beam1.A*sin(beam1.rotation[0]), 0.0]
-
-	def constraint(theta):
-		"""beam1 and base state are known. 
-		Solve the optimization problem to find states of coupler and beam2
-		Input is z-rotation of coupler
-		"""
-		solveState(theta)
-		c = buildConstraint(beam1, coupler, beam2, base)
-		# print [b.position for b in (beam1, coupler, beam2, base)]
-		ret = np.dot(np.transpose(c), c)
-		# print ret
-		return ret
-
-	def solveState(theta):
-		coupler.rotation = [theta,0.0,0.0]
-		beam2.position = [a for a in coupler.end()]
-		dx = beam2.position[0]-base.position[0]
-		dy = beam2.position[1]-base.position[1]
-		hyp = sqrt(dx**2 + dy**2)
-		beam2.rotation = [acos(dx/hyp)-pi,0.0,0.0]
-
-	solveState(0)
-	o = optimize(constraint,(0.0,), bounds=((0,2*pi),))
-	if o.success and constraint(o.x[0]) < constraintBound:
-		solveState(o.x[0])
-		# print constraint(o.x[0])
-		ret = [[list(beam.start()), list(beam.end())] for beam in (beam1, coupler, beam2, base)]
-		ret += coupler.offsetBeam()
-		return ret
-	else:
-		return None
-
-def buildStateParam(param, angle = 0.1):
-	"""p = [inCrankLength rockerLength outCrankLength baseLength PoIOffset PoIDistance]"""
-	beam1 = Beam(param[0])
-	coupler = Beam(param[1])
-	coupler.PoIOffset = param[4]
-	coupler.PoIDistance = param[5]
-	beam2 = Beam(param[2])
-	base = Beam(param[3])
-	return buildState(beam1, coupler, beam2, base, angle)
-
-def buildStateParamLine(param, angle = 0.1):
-	"""p = [inCrankLength rockerLength outCrankLength PoIOffset PoIDistance a b c]"""
-	beam1 = Beam(param[0])
-	coupler = Beam(param[1])
-	coupler.PoIOffset = param[3]
-	coupler.PoIDistance = param[4]
-	beam2 = Beam(param[2])
-	lineTrack = Line(param[5], param[6], param[7])
-	return buildStateLine(beam1, coupler, beam2, angle, lineTrack)
-
-
-def buildStateLine(beam1, coupler, beam2, angle, lineTrack):
-	"""This state has the outcrank sliding on a line, 
-	instead of a fixed point.
-	lineTrack is a Line object that represents the track the
-	outcrank is constrained on.
-
-	Returns none if optimization fails to find a zero (impossible state)
-	Otherwise, returns a list of the start and end xyz-coordinates of  
-	each beam in the state.
-	"""
-	constraintBound = 0.1
-
-	beam1.position = [0.0,0.0,0.0]
-	beam1.rotation = [angle,0.0,0.0]
-	coupler.position = [beam1.A*cos(beam1.rotation[0]), beam1.A*sin(beam1.rotation[0]), 0.0]
-
-	def buildConstraint(beam1, coupler, beam2):
-		return np.append(np.add(pinConnection(beam1, coupler), pinConnection(coupler,beam2)), lineTrack.distanceToPoint(beam2.end()[0],beam2.end()[1]))
-
-	def constraint(theta):
-		"""beam1 and base state are known. 
-		Solve the optimization problem to find states of coupler and beam2
-		Input is z-rotation of coupler
-		"""
-		solveState(theta)
-		c = buildConstraint(beam1, coupler, beam2)
-		ret = np.dot(np.transpose(c), c)
-		return ret
-
-	def solveState(theta):
-		coupler.rotation = [theta,0.0,0.0]
-		beam2.position = [a for a in coupler.end()]
-		dx = beam2.start()[0]-beam2.end()[0]
-		dy = beam2.start()[1]-beam2.end()[1]
-		hyp = sqrt(dx**2 + dy**2)
-		beam2.rotation = [acos(dx/hyp)-pi,0.0,0.0]
-
-	solveState(0)
-	o = optimize(constraint,(0.0,), bounds=((0,2*pi),))
-	if o.success and constraint(o.x[0]) < constraintBound:
-		solveState(o.x[0])
-		# ensure that consistent solution to line intersection is chosen
-		if beam2.start()[0] > beam2.end()[0]:
-			dist = beam2.A
-			newX = beam2.start()[0] + dist/math.sqrt(1+lineTrack.slope()**2)
-			newY = lineTrack.solveForY(newX)
-			dx = newX - beam2.start()[0]
-			dy = newY - beam2.start()[1]
-			hyp = sqrt(dx**2 + dy**2)
-			beam2.rotation = [acos(dx/hyp)-pi,0.0,0.0]
-		ret = [[list(beam.start()), list(beam.end())] for beam in (beam1, coupler, beam2)]
-		ret += coupler.offsetBeam()
-		return ret
-	else:
-		return None
-
-def getComponents(results):
-	print "Getting principal components"
-	components = []
-	for trace in results:
-		components += [getPrincipalComponents(getMids(trace))]
-	np.save(componentsFile, components)
-	return np.array(components)
 
 def printFeatureVectors():
 	print "Feature Vectors:"
@@ -433,17 +187,17 @@ def optimizeParametersNM(testTrace, index):
 
 	def optimizingFunction(p):
 		trace = []
-		inCrank = Beam(p[0])
-		rocker = Beam(p[1])
-		outCrank = Beam(p[2])
-		base = Beam(p[3])
+		inCrank = Beam2(p[0])
+		rocker = Beam2(p[1])
+		outCrank = Beam2(p[2])
+		base = Beam2(p[3])
 		PoIOffset = p[4]
 		PoIDistance = p[5]
 		rocker.PoIOffset = PoIOffset
 		rocker.PoIDistance = PoIDistance
 		for angle in range(1,int(NUMPOINTS)):
 			a = angle*pi/2.0/(NUMPOINTS/4)
-			position = buildState(inCrank, rocker, outCrank, base, a)
+			position = construct.buildState(inCrank, rocker, outCrank, base, a)
 			if not position:
 				continue
 			trace += [rocker.PoI()]
@@ -496,14 +250,14 @@ def optimizeParameters(testTrace, index):
 					if not (baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0):
 						continue
 
-					inCrank = Beam(inCrankLength)
-					rocker = Beam(rockerLength)
-					outCrank = Beam(outCrankLength)
-					base = Beam(baseLength)
+					inCrank = Beam2(inCrankLength)
+					rocker = Beam2(rockerLength)
+					outCrank = Beam2(outCrankLength)
+					base = Beam2(baseLength)
 					r = [[] for _ in range(int(PoIFineness*2+1)**2)]
 					for angle in range(1,int(NUMPOINTS)):
 						a = angle*pi/2.0/(NUMPOINTS/4)
-						position = buildState(inCrank, rocker, outCrank, base, a)
+						position = construct.buildState(inCrank, rocker, outCrank, base, a)
 						if position:
 							# Iterate through positions of Point of Interest on rocker
 							count1 = -1
@@ -555,7 +309,7 @@ def traceFromParameters(p):
 	rocker.PoIDistance = PoIDistance
 	for angle in range(1,int(NUMPOINTS)):
 		a = angle*pi/2.0/(NUMPOINTS/4)
-		position = buildState(inCrank, rocker, outCrank, base, a)
+		position = construct.buildState(inCrank, rocker, outCrank, base, a)
 		if not position:
 			continue
 		trace += [rocker.PoI()]
@@ -572,11 +326,7 @@ def plotParametersMultiple(ps):
 
 
 
-results = None
-components = None
 line, = (None,)
-PoI = None
-parameterLookup = None # index of an image is the same as its filename
 testTrace = inputTest('input.txt')
 PoILine = None
 parameterLookupLine = None # index of an image is the same as its filename
@@ -604,7 +354,7 @@ def showDemo(closestCoarse, optimized):
 		angleIncrement = 2*pi/frames
 		def animate(i):
 			i = i+1
-			state = buildStateParam(param, angle=i*angleIncrement)
+			state = construct.buildStateParam(param, angle=i*angleIncrement)
 			if not type(state) == list:
 				init()
 			else:
@@ -643,7 +393,7 @@ def showDemo(closestCoarse, optimized):
 
 	ax4.scatter([x[0]for x in t2], [x[1] for x in t2])
 	ax4.set_title('Scaled Optimized')
-	state = buildStateParam(t_p, angle=1.5)
+	state = construct.buildStateParam(t_p, angle=1.5)
 	for line in state:
 		temp = zip(line[0],line[1])
 		ax4.plot(temp[0], temp[1])
@@ -674,7 +424,7 @@ def showDemoLine(param):
 		angleIncrement = 2*pi/frames
 		def animate(i):
 			i = i+1
-			state = buildStateParamLine(param, angle=i*angleIncrement)
+			state = construct.buildStateParamLine(param, angle=i*angleIncrement)
 			if not type(state) == list:
 				init()
 			else:
@@ -705,7 +455,7 @@ def showDemoLine(param):
 	plt.show()
 
 def plotStateLineParam(param, angle =0.1):
-	state = buildStateParamLine(param,angle)
+	state = construct.buildStateParamLine(param,angle)
 	end = 3
 	for i in range(3):
 		beam = state[i]
@@ -713,3 +463,128 @@ def plotStateLineParam(param, angle =0.1):
 	plt.show()
 # plt.show()
 # return coarse, optimized
+
+def lengthGenerator(start1=1, end1=4, start2=1, end2=4, start3=1, end3=4, start4=1, end4=4, step=1):
+	"""Geneartor cycles through tuples that represent a set of length parameters. 
+	arguments are the start and end values for each beam, inclusive, and the step to use when iterating.
+	"""
+	assert step>0, 'Step is not positive'
+
+	length1 = start1
+	while length1 <= end1:
+		length2 = start2
+		while length2 <= end2:
+			length3 = start3
+			while length3 <= end3:
+				length4 = start4
+				while length4 <= end4:
+					yield (length1, length2, length3, length4)
+					length4 += step
+				length3 += step
+			length2 += step
+		length1 += step
+
+def offsetGenerator(offsetStart=-1, offsetEnd=1, distanceStart=-3, distanceEnd=3, step=1.0):
+	assert step>0, 'Step is not positive'
+
+	offset = offsetStart
+	while offset <= offsetEnd:
+		distance = distanceStart
+		while distance <= distanceEnd:
+			yield (offset, distance)
+			distance += step
+		offset += step/3.0
+
+def buildDatabase(mechanismDatabase, traceDatabase, paramDatabase, params=(1,4,1,4,1,4,1,4,1)):
+	"""Builds a database of traces created from 2 fixed cranks.
+	traceDatabase - a list to add additional traces to
+	paramDatabase - a list to add additional corresponding params to
+	params - a tuple of arguments to pass to lengthGenerator
+	"""
+	assert isinstance(mechanismDatabase, list), 'mechanismDatabase is not a list'
+	assert isinstance(traceDatabase, list), 'traceDatabase is not a list'
+	assert isinstance(paramDatabase, list), 'paramDatabase is not a list'
+	startIndex = len(traceDatabase)
+	assert startIndex == len(paramDatabase) and startIndex == len(mechanismDatabase), 'mismatched Database indices'
+
+	lengthsList = lengthGenerator(*params)
+	angles = [i*pi*2.0/NUMPOINTS for i in range(1, int(NUMPOINTS))]
+
+	baseMechanisms = []
+	sizeOfLengthList = countElements(params)
+	displayPercent = .05
+	displayCounter = displayPercent*sizeOfLengthList
+	counter = -1
+	for lengths in lengthsList:
+		counter += 1
+		if counter > displayCounter:
+			print '%d%%' % (float(counter)/sizeOfLengthList*100)
+			displayCounter += displayPercent*sizeOfLengthList
+		inCrankLength, rockerLength, outCrankLength, baseLength = lengths
+		if not satisfiesGrashof(*lengths): continue
+		beams = [Beam(length) for length in lengths]
+		rocker = beams[1]
+
+		# Calculate if the trace created is 'full' enough
+		traceLength = 0
+		for angle in angles:
+			state = construct.buildState(*(beams+[angle]))
+			if state:
+				traceLength += 1
+		if traceLength < TRACEMINLEN:
+			continue
+		
+		traces = []
+		mechanisms = []
+
+		# Construct multiple traces simultaneously to avoid redundant buildstate() calls
+		for angle in angles:
+			state = construct.buildState(*(beams+[angle]))
+			angleTraces = []
+			angleMechanisms = []
+			if state:
+				for PoIOffset, PoIDistance in offsetGenerator():
+					rocker.PoIOffset = PoIOffset
+					rocker.PoIDistance = PoIDistance
+					angleTraces.append(rocker.PoI())
+					angleMechanisms.append(state)
+			else:
+				for PoIOffset, PoIDistance in offsetGenerator():
+					angleTraces.append(None)
+					angleMechanisms.append(None)
+			traces.append(angleTraces)
+			mechanisms.append(angleMechanisms)
+
+		testLength = len(traces[0])
+		for trace in traces:
+			assert len(trace) == testLength, 'DEBUG'
+		traces = zip(*traces)
+		traces = [filter(None, trace) for trace in traces]
+
+		# Add traces and parameters to both databases
+		databaseIndex = 0
+		for offsetParams in offsetGenerator():
+			traceDatabase.append(traces[databaseIndex])
+			mechanismDatabase.append(mechanisms[databaseIndex])
+			databaseIndex += 1
+			paramDatabase.append(lengths + offsetParams)
+
+
+def satisfiesGrashof(inCrankLength, rockerLength, outCrankLength, baseLength):
+	"""Grashoff Conditions
+	baseLength+rockerLength-inCrankLength-outCrankLength > 0 
+	baseLength-rockerLength-inCrankLength+outCrankLength > 0
+	baseLength+rockerLength-inCrankLength+outCrankLength > 0
+	"""
+	return baseLength+rockerLength-inCrankLength-outCrankLength>0 and baseLength-rockerLength-inCrankLength+outCrankLength>0 and -baseLength+rockerLength-inCrankLength+outCrankLength>0
+
+def countElements(params):
+	"""params has for (start, end, start, end, ..., step)
+	"""
+	assert len(params)%2 == 1, 'Invalid Parameters'
+	index = 0
+	count = 1
+	while index < len(params)-1:
+		count *= floor(float(params[index+1]-params[index])/params[-1] + 1)
+		index += 2
+	return int(count)

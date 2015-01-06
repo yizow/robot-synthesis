@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import animation
 import matplotlib.pyplot as plt
 from pylab import *
-from Beam import Beam
+from Beam2 import Beam
 
 # DEPRECATED METHOD
 def plotResults_old(results):
