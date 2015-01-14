@@ -16,7 +16,7 @@ def pinConnection(beam1, beam2):
 def buildConstraint(beam1, coupler, beam2, base):
     return np.add(np.add(pinConnection(beam1, coupler), pinConnection(coupler, beam2)), np.add(pinConnection(beam2, base), pinConnection(base, beam1)))
 
-def buildState(beam1, coupler, beam2, base, angle):
+def buildState(beam1, coupler, beam2, base, angle, lastAngle=0.0):
     """Returns none if optimization fails to find a zero (impossible state)
     Otherwise, returns a list of the start and end xyz-coordinates of  
     each beam in the state.
@@ -49,8 +49,8 @@ def buildState(beam1, coupler, beam2, base, angle):
         hyp = sqrt(dx**2 + dy**2)
         beam2.rotation = [acos(dx/hyp)-pi,0.0,0.0]
 
-    solveState(0)
-    o = optimize(constraint,(0.0,))
+    solveState(lastAngle)
+    o = optimize(constraint,(lastAngle,))
     if o.success and constraint(o.x[0]) < constraintBound:
         solveState(o.x[0])
         # print constraint(o.x[0])
@@ -81,7 +81,7 @@ def buildStateParamLine(param, angle = 0.1):
     return buildStateLine(beam1, coupler, beam2, angle, lineTrack)
 
 
-def buildStateLine(beam1, coupler, beam2, angle, lineTrack):
+def buildStateLine(beam1, coupler, beam2, angle, lineTrack, lastAngle=0.0):
     """This state has the outcrank sliding on a line, 
     instead of a fixed point.
     lineTrack is a Line object that represents the track the
@@ -118,8 +118,8 @@ def buildStateLine(beam1, coupler, beam2, angle, lineTrack):
         hyp = sqrt(dx**2 + dy**2)
         beam2.rotation = [acos(dx/hyp)-pi,0.0,0.0]
 
-    solveState(0)
-    o = optimize(constraint,(0.0,))
+    solveState(lastAngle)
+    o = optimize(constraint,(lastAngle,))
     if o.success and constraint(o.x[0]) < constraintBound:
         solveState(o.x[0])
         # ensure that consistent solution to line intersection is chosen

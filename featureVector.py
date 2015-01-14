@@ -53,6 +53,7 @@ def getArea(trace):
 	return area
 
 def getDistance(trace):
+	trace = np.array(trace)
 	avgX = np.average(trace[:,0])
 	avgY = np.average(trace[:,1])
 	avgZ = np.average(trace[:,2])
@@ -62,7 +63,7 @@ def getDistance(trace):
 def getOrientation(distance, vmax):
 	# Explicit norm calculated for speed
 	v = np.cross(distance/math.sqrt(distance[0]**2 + distance[1]**2 + distance[1]**2), vmax)
-	return np.arcsin(math.sqrt(v[0]**2 + v[1]**2 + v[1]**2))
+	return np.arcsin(math.sqrt(v[0]**2 + v[1]**2 + v[2]**2))
 
 def getAxisLengths(trace, v1, v2):
 	"""Get the length of the curve on the major and minor axis, returned in that order.
@@ -164,6 +165,9 @@ def getDistanceVectors(T1, T2):
 	if len(T1) > len(T2):
 		T1, T2 = T2, T1
 
+	# Spread out points along all of T2
+	t2probe = [int(float(len(T2))/len(T1)*i) for i in range(len(T1))]
+
 	# Normalize traces
 	vmax, vmin = getPrincipalComponents(T1)
 	lmax, lmin = getAxisLengths(T1, vmax, vmin)
@@ -178,7 +182,7 @@ def getDistanceVectors(T1, T2):
 	for increment in range(len(T2)):
 		posSum, angleSum = 0.0,0.0
 		for index in range(len(T1)):
-			difference = np.subtract(T1[index],T2[(index+increment)%len(T2)])
+			difference = np.subtract(T1[index],T2[(t2probe[index]+increment)%len(T2)])
 			# explicit norm calculated for speed
 			posSum += difference[0]**2+difference[1]**2+difference[2]**2
 			angleDifference = T1Curvature[index]-T2Curvature[(index+increment)%len(T2)]
@@ -205,3 +209,26 @@ def scale(testTrace, curve):
 	vmax, vmin = getPrincipalComponents(testTrace)
 	lmax, lmin = getAxisLengths(testTrace, vmax, vmin)
 	return np.array([np.multiply(point,lmax) for point in curve])
+
+def reorient(trace):
+	"""Reorients trace so that the major and minor axes point east and north, respectively. 
+	"""
+	if not type(trace) == list:
+		trace = list(trace)
+	vmax, vmin = getPrincipalComponents(trace)
+	# v1, v2 = getPrincipalComponents(trace)
+	# # Negative because we want to undo this rotation
+	# angle = -np.arctan(v1[1]/v1[0])
+	angle = -getOrientation(getDistance(trace), vmax)
+	cosShift, sinShift = np.cos(angle), np.sin(angle)
+	# Multiplying by rotation matrix
+	trace = [[cosShift*point[0]-sinShift*point[1], sinShift*point[0]+cosShift*point[1], point[2]] for point in trace]
+	# # Check if we need to flip over x-axis
+	# v1, v2 = getPrincipalComponents(trace)
+	# if v2[1] < 0:
+	# 	trace = [[point[0], -point[1], point[2]] for point in trace]
+	return trace
+
+def center(trace):
+	offset = getDistance(trace)
+	return [point+offset for point in trace]

@@ -211,10 +211,19 @@ def getMids(trace):
 	return np.array(mids)
 
 
-def plotTrace(trace):
+def plotTrace(trace, xAxis=None, yAxis=None, aspect=None):
 	xPoints = [point[0] for point in trace]
 	yPoints = [point[1] for point in trace]
 	plt.scatter(xPoints, yPoints)
+	x1,x2,y1,y2 = plt.axis()
+	if xAxis:
+		plt.axis((xAxis[0], xAxis[1], y1, y2))
+		x1,x2,y1,y2 = plt.axis()
+	if yAxis:
+		plt.axis((x1, x2, yAxis[0], yAxis[1]))
+	if aspect:
+		if aspect=='equal':
+			plt.axes().set_aspect('equal')
 	plt.show()
 
 def plotTraces(traces):

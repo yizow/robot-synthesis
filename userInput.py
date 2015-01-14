@@ -38,4 +38,5 @@ def inputTest(filename):
 	yPoints = getPoints(ys, t)
 	zPoints = getPoints(zs, t)
 	trace = zip(xPoints, yPoints, zPoints)
+	trace = [list(point) for point in trace]
 	return trace
